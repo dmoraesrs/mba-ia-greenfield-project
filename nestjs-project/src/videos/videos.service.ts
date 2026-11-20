@@ -26,6 +26,8 @@ import {
   VideoResponseDto,
 } from './dto/video-response.dto';
 import { type Video, VideoStatus } from './entities/video.entity';
+import { PublicVideoResponseDto } from './dto/public-video-response.dto';
+import { isValidPublicId } from './public-id';
 import { VideoProcessingQueue } from './video-processing.queue';
 import { VIDEO_FAILURE_REASONS } from './videos.constants';
 import { VideosRepository } from './videos.repository';
@@ -204,6 +206,36 @@ export class VideosService {
       throw new VideoNotFoundException();
     }
     return VideoResponseDto.fromEntity(updated);
+  }
+
+  /** Consulta do dono, para acompanhar o processamento (qualquer status). */
+  async getOwned(userId: string, id: string): Promise<VideoResponseDto> {
+    const video = await this.videosRepository.findOwnedById(id, userId);
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    return VideoResponseDto.fromEntity(video);
+  }
+
+  /** Dados públicos de um vídeo `ready` pelo identificador da URL única. */
+  async getPublic(publicId: string): Promise<PublicVideoResponseDto> {
+    return PublicVideoResponseDto.fromEntity(
+      await this.findReadyByPublicId(publicId),
+    );
+  }
+
+  /**
+   * Formato inválido, inexistente ou fora de `ready` resultam no mesmo
+   * `VIDEO_NOT_FOUND`, sem revelar a existência do vídeo.
+   */
+  private async findReadyByPublicId(publicId: string): Promise<Video> {
+    const video = isValidPublicId(publicId)
+      ? await this.videosRepository.findReadyByPublicId(publicId)
+      : null;
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    return video;
   }
 
   private async rejectUploadedObject(

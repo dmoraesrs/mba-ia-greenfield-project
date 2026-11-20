@@ -40,6 +40,9 @@ interface RepositoryMock {
   createDraft: jest.MockedFunction<VideosRepository['createDraft']>;
   findOwnedById: jest.MockedFunction<VideosRepository['findOwnedById']>;
   findById: jest.MockedFunction<VideosRepository['findById']>;
+  findReadyByPublicId: jest.MockedFunction<
+    VideosRepository['findReadyByPublicId']
+  >;
   updateWhereStatus: jest.MockedFunction<VideosRepository['updateWhereStatus']>;
 }
 
@@ -111,6 +114,7 @@ describe('VideosService', () => {
       createDraft: jest.fn((data) => Promise.resolve(draftFrom(data))),
       findOwnedById: jest.fn().mockResolvedValue(null),
       findById: jest.fn(),
+      findReadyByPublicId: jest.fn().mockResolvedValue(null),
       updateWhereStatus: jest.fn().mockResolvedValue(true),
     };
     queue = { enqueue: jest.fn().mockResolvedValue(undefined) };
@@ -382,6 +386,80 @@ describe('VideosService', () => {
       await expect(
         service.completeUpload(USER_ID, 'video-1', { parts }),
       ).rejects.toBeInstanceOf(VideoNotInDraftException);
+    });
+  });
+
+  describe('getOwned', () => {
+    it('should return the video in any status to its owner', async () => {
+      repository.findOwnedById.mockResolvedValue(
+        ownedDraft({ status: VideoStatus.FAILED, failure_reason: 'x' }),
+      );
+
+      const result = await service.getOwned(USER_ID, 'video-1');
+
+      expect(result.status).toBe(VideoStatus.FAILED);
+      expect(result.failure_reason).toBe('x');
+      expect(repository.findOwnedById).toHaveBeenCalledWith('video-1', USER_ID);
+    });
+
+    it('should throw VideoNotFoundException for a video of another user', async () => {
+      repository.findOwnedById.mockResolvedValue(null);
+
+      await expect(service.getOwned(USER_ID, 'video-1')).rejects.toBeInstanceOf(
+        VideoNotFoundException,
+      );
+    });
+  });
+
+  describe('getPublic', () => {
+    it('should return only public fields of a ready video', async () => {
+      repository.findReadyByPublicId.mockResolvedValue(
+        ownedDraft({
+          status: VideoStatus.READY,
+          duration_seconds: 2,
+          metadata: {
+            width: 320,
+            height: 240,
+            video_codec: 'h264',
+            audio_codec: null,
+            bitrate: null,
+            container: 'mp4',
+            frame_rate: 25,
+            size_bytes: 10,
+          },
+        }),
+      );
+
+      const result = await service.getPublic('abcdefghijk');
+
+      expect(Object.keys(result).sort()).toEqual([
+        'created_at',
+        'duration_seconds',
+        'metadata',
+        'mime_type',
+        'public_id',
+      ]);
+      expect(repository.findReadyByPublicId).toHaveBeenCalledWith(
+        'abcdefghijk',
+      );
+    });
+
+    it.each(['short', 'has/slash!!', 'abcdefghijkl'])(
+      'should throw VideoNotFoundException without querying for malformed id %p',
+      async (publicId) => {
+        await expect(service.getPublic(publicId)).rejects.toBeInstanceOf(
+          VideoNotFoundException,
+        );
+        expect(repository.findReadyByPublicId).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should throw VideoNotFoundException when no ready video matches (draft, processing, failed or unknown)', async () => {
+      repository.findReadyByPublicId.mockResolvedValue(null);
+
+      await expect(service.getPublic('abcdefghijk')).rejects.toBeInstanceOf(
+        VideoNotFoundException,
+      );
     });
   });
 });

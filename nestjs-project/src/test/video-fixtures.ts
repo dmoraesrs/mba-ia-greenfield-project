@@ -5,7 +5,8 @@ import { VerificationToken } from '../auth/entities/verification-token.entity';
 import { Channel } from '../channels/entities/channel.entity';
 import { originalKey } from '../storage/storage-keys';
 import { User } from '../users/entities/user.entity';
-import { Video } from '../videos/entities/video.entity';
+import { Video, type VideoMetadata } from '../videos/entities/video.entity';
+import { generatePublicId } from '../videos/public-id';
 import type { CreateDraftData } from '../videos/videos.repository';
 
 /** Entidades necessárias para um DataSource de teste que toca vídeos. */
@@ -66,3 +67,31 @@ export function buildDraftData(
     ...overrides,
   };
 }
+
+/** Insere um vídeo pronto no estado desejado (sem passar pelo fluxo de upload). */
+export async function seedVideo(
+  dataSource: DataSource,
+  channelId: string,
+  overrides: Partial<Video> = {},
+): Promise<Video> {
+  const data = buildDraftData(channelId);
+  const repo = dataSource.getRepository(Video);
+  await repo.insert({
+    ...data,
+    upload_id: null,
+    public_id: generatePublicId(),
+    ...overrides,
+  });
+  return repo.findOneByOrFail({ id: overrides.id ?? data.id });
+}
+
+export const SAMPLE_METADATA: VideoMetadata = {
+  width: 320,
+  height: 240,
+  video_codec: 'h264',
+  audio_codec: 'aac',
+  bitrate: 187456,
+  container: 'mov,mp4,m4a,3gp,3g2,mj2',
+  frame_rate: 25,
+  size_bytes: 47404,
+};

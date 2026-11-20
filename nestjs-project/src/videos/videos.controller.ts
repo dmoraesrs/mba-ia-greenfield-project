@@ -18,9 +18,11 @@ import {
 } from '@nestjs/swagger';
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { CreateVideoDto } from './dto/create-video.dto';
+import { PublicVideoResponseDto } from './dto/public-video-response.dto';
 import { SignPartsDto } from './dto/sign-parts.dto';
 import {
   CreateVideoResponseDto,
@@ -63,6 +65,71 @@ export class VideosController {
     @Body() dto: CreateVideoDto,
   ): Promise<CreateVideoResponseDto> {
     return this.videosService.initiateUpload(user.sub, dto);
+  }
+
+  // Rotas `public/...` declaradas antes de `:id`.
+  @Public()
+  @Get('public/:publicId')
+  @ApiParam({
+    name: 'publicId',
+    description: 'Unique public identifier (11 base64url characters)',
+    example: 'dQw4w9WgXcQ',
+  })
+  @ApiOperation({
+    summary: 'Get public video data',
+    description:
+      'Returns the public data of a ready video accessed through its unique link. No authentication required.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Public data of the ready video',
+    type: PublicVideoResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Invalid public id, unknown video or video not ready (same response for all)',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async getPublic(
+    @Param('publicId') publicId: string,
+  ): Promise<PublicVideoResponseDto> {
+    return this.videosService.getPublic(publicId);
+  }
+
+  @Get(':id')
+  @ApiBearerAuth('access-token')
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Video id' })
+  @ApiOperation({
+    summary: 'Get an owned video',
+    description:
+      'Returns a video of the authenticated user in any status, to follow its processing.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The video',
+    type: VideoResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Video id is not a uuid',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid access token',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found or owned by another user',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async getOwned(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<VideoResponseDto> {
+    return this.videosService.getOwned(user.sub, id);
   }
 
   @Get(':id/upload/parts')
