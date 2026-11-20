@@ -103,8 +103,7 @@ export class Video {
   @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
 
-  // Lado inverso (Channel.videos) entra junto com o registro do VideosModule (SI-03.7).
-  @ManyToOne(() => Channel, {
+  @ManyToOne(() => Channel, (channel) => channel.videos, {
     nullable: false,
     onDelete: 'CASCADE',
   })

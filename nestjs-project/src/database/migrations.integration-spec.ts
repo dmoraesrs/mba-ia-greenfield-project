@@ -35,12 +35,11 @@ describe('Database migrations (integration)', () => {
 
     await dataSource.initialize();
 
-    await Promise.all([
-      ...MANAGED_TABLES.map((table) =>
-        dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`),
-      ),
-      dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
-    ]);
+    // Em sequência: DROP ... CASCADE concorrentes entre tabelas ligadas por FK
+    // disputam locks e terminam em deadlock.
+    for (const table of [...MANAGED_TABLES, 'migrations']) {
+      await dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`);
+    }
     // DROP TABLE não remove os tipos enum criados pelas migrations.
     await dataSource.query(`DROP TYPE IF EXISTS "videos_status_enum"`);
     await dataSource.query(
