@@ -150,3 +150,10 @@
   - O usuário do fluxo é confirmado direto no banco pelo `registerAndLogin` (registro e login reais via HTTP), em vez de ler o token no Mailpit.
   - **Limitação pré-existente do OpenAPI:** o `openapi:export` roda via `ts-node`, sem o plugin do `@nestjs/swagger` (o `src/metadata.ts` é um stub), então os DTOs de requisição saem com `properties: {}` (o `RegisterDto` da Fase 02 já estava assim). Os 9 endpoints, os status por resposta, o envelope de erro e os DTOs de resposta (com `@ApiProperty`) estão completos. Corrigir o export para aplicar o plugin é tarefa futura.
   - README e `api.http` documentam o fluxo de upload, portas `9000`/`9001` do RustFS, Valkey sem porta no host e os riscos de TD-01, TD-11 e TD-13. Travessões nas linhas novas do `nestjs-project/CLAUDE.md` (SI-03.11) e num nome de suíte (SI-03.3) foram removidos (o último em commit `style:` separado).
+
+### Gates de segurança da revisão final
+- **Status:** completed
+- **Dependências:** `npm audit --omit=dev` acusava vulnerabilidades HIGH em `@nestjs/core`, `body-parser`, `brace-expansion` e outras transitivas. Corrigidas com `npm audit fix --before=2026-11-13 --ignore-scripts` (só versões com pelo menos 7 dias de publicadas, sem mudar o `package.json`). Suíte repetida depois: 304 unitários/integração e 87 e2e passando, `tsc` limpo, lint sem erros.
+- **Risco aceito (reavaliar até 2027-02-20):** restam 35 vulnerabilidades moderadas, todas em `@nestjs-modules/mailer` (via `mjml`, `glob`, `minimatch`), dependência da Fase 02, e em `typeorm` (via `glob`). A correção exige troca de versão major desses pacotes, fora do escopo desta fase.
+- **Imagens:** `nestjs-api`, `video-worker`, `rustfs` e `valkey` sem CVE HIGH ou CRITICAL com correção (Trivy). `postgres:17.11` e `axllent/mailpit:v1.33.0`, herdadas da Fase 02 e usadas só no ambiente local, têm CVEs HIGH na imagem do fornecedor; ficam como risco aceito até a próxima atualização de digest.
+- **Segredos:** `gitleaks` sem achados nos commits da fase.
