@@ -94,7 +94,7 @@ describe('FfmpegService (integration, real binaries)', () => {
 
     it('should throw MediaToolError when the input cannot be reached', async () => {
       await expect(
-        ffmpeg.probe('http://rustfs:9/unreachable'),
+        ffmpeg.probe('http://minio:9/unreachable'),
       ).rejects.toBeInstanceOf(MediaToolError);
     });
   });

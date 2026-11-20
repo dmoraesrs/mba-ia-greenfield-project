@@ -14,7 +14,7 @@ services:
         condition: service_started
       valkey:
         condition: service_healthy
-      rustfs:
+      minio:
         condition: service_healthy
 
   video-worker:
@@ -30,7 +30,7 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
-      rustfs:
+      minio:
         condition: service_healthy
 
   db:
@@ -63,25 +63,24 @@ services:
       timeout: 5s
       retries: 5
 
-  # Object storage compatível com a API S3 (vídeos e thumbnails).
-  rustfs:
-    image: rustfs/rustfs:1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74
+  # Object storage compatível com a API S3 (vídeos e thumbnails). MinIO pelo fork
+  # comunitário pgsty/minio (a imagem oficial minio/minio saiu do Docker Hub), uso local/lab.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - RUSTFS_ACCESS_KEY=${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY ausente no .env}
-      - RUSTFS_SECRET_KEY=${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY ausente no .env}
-      - RUSTFS_ADDRESS=0.0.0.0:9000
-      - RUSTFS_CONSOLE_ENABLE=true
-      - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+      - MINIO_ROOT_USER=${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY ausente no .env}
+      - MINIO_ROOT_PASSWORD=${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY ausente no .env}
     volumes:
-      - rustfs-data:/data
+      - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
-  rustfs-data:
+  minio-data:

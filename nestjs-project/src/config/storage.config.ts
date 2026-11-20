@@ -2,7 +2,7 @@ import { registerAs } from '@nestjs/config';
 
 export default registerAs('storage', () => ({
   /** Endpoint interno (nome do serviço do Compose), usado pela API e pelo worker. */
-  endpoint: process.env.STORAGE_ENDPOINT ?? 'http://rustfs:9000',
+  endpoint: process.env.STORAGE_ENDPOINT ?? 'http://minio:9000',
   /** Endpoint público, usado só para assinar URLs entregues ao cliente. */
   publicEndpoint:
     process.env.STORAGE_PUBLIC_ENDPOINT ?? 'http://localhost:9000',

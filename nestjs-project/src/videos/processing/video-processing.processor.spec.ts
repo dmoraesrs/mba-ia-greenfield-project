@@ -73,7 +73,7 @@ describe('VideoProcessingProcessor', () => {
       updateWhereStatus: jest.fn().mockResolvedValue(true),
     };
     storage = {
-      signGetObject: jest.fn().mockResolvedValue('http://rustfs:9000/signed'),
+      signGetObject: jest.fn().mockResolvedValue('http://minio:9000/signed'),
       putObject: jest.fn().mockResolvedValue(undefined),
     };
     ffmpeg = {
@@ -116,7 +116,7 @@ describe('VideoProcessingProcessor', () => {
       await expect(processor.process(job())).resolves.toBe('processed');
 
       expect(ffmpeg.extractFrame).toHaveBeenCalledWith(
-        'http://rustfs:9000/signed',
+        'http://minio:9000/signed',
         0.75,
       );
       expect(storage.putObject).toHaveBeenCalledWith(

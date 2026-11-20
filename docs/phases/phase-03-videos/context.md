@@ -101,6 +101,7 @@ _Correlated (origin 3, `related_phases: []`) docs incluídos em `## Inherited De
 
 **Revisions:**
 - 2026-11-20 — Maestro escolheu a Option C (RustFS) no lugar da recomendação A: imagem `rustfs/rustfs:1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74` (fixada por digest, publicada em 2026-11-10, cumpre o cooldown de 7 dias), portas 9000 (S3) e 9001 (console), credenciais via `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` ou as variáveis indicadas no README da imagem (confirmar na implementação); o código fala só a API S3 com `@aws-sdk/client-s3` e `@aws-sdk/s3-request-presigner`, então trocar por S3 em produção não muda código. Rationale: scan Trivy de 2026-11-20 (`--severity HIGH,CRITICAL --ignore-unfixed`) reprovou `pgsty/minio:RELEASE.2026-08-04T00-00-00Z` (52 HIGH e 3 CRITICAL com correção disponível) e aprovou `rustfs/rustfs:1.0.5` (nenhum HIGH/CRITICAL com correção); a imagem oficial `minio/minio` não existe mais no Docker Hub; se algum recurso S3 (ex.: `response-content-disposition`) falhar no RustFS, registrar no `progress.md` e usar a alternativa equivalente do TD-12 (decisão do maestro).
+- 2026-11-20 (revisão após a implementação): maestro voltou para a Option A (MinIO via `pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372`, serviço `minio`), como pede o enunciado; CVEs da imagem aceitos por ser ambiente local/lab. Detalhes no TD-01 de `docs/decisions/technical-decisions-phase-03-videos.md`.
 
 ### phase-03-videos/TD-02
 

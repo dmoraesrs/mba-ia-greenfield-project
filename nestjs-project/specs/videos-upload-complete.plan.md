@@ -10,7 +10,7 @@ target_file: test/videos-upload-complete.e2e-spec.ts
 
 ## Application Overview
 
-`POST /videos/:id/upload/complete` conclui o multipart no RustFS, confere o tamanho real do objeto (`HeadObject`) contra o tamanho declarado e o limite de 10GB e, no caminho feliz, passa o vídeo de `draft` para `processing` e enfileira o job `process-video` (`jobId = videoId`) na fila BullMQ `video-processing`. Divergência de tamanho apaga o objeto e marca o vídeo `failed` com motivo, sem job; ETag inválido mantém o vídeo em `draft` para correção.
+`POST /videos/:id/upload/complete` conclui o multipart no MinIO, confere o tamanho real do objeto (`HeadObject`) contra o tamanho declarado e o limite de 10GB e, no caminho feliz, passa o vídeo de `draft` para `processing` e enfileira o job `process-video` (`jobId = videoId`) na fila BullMQ `video-processing`. Divergência de tamanho apaga o objeto e marca o vídeo `failed` com motivo, sem job; ETag inválido mantém o vídeo em `draft` para correção.
 
 ## Test Scenarios
 

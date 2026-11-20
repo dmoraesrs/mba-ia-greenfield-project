@@ -129,7 +129,7 @@ Content-Type: {{contentType}}
 # ─────────────────────────────────────────────
 # VÍDEOS (FASE 03)
 # Fluxo: iniciar upload -> PUT das partes direto no storage -> concluir -> acompanhar
-# Storage (RustFS): API S3 em http://localhost:9000, console em http://localhost:9001
+# Storage (MinIO): API S3 em http://localhost:9000, console em http://localhost:9001
 # ─────────────────────────────────────────────
 
 ### 10. Iniciar upload: cria o rascunho e devolve as URLs das partes (64 MiB cada)

@@ -60,7 +60,7 @@ describe('storage, queue and video config namespaces', () => {
 
   it('should map STORAGE_* variables to the storage namespace', async () => {
     const { storage } = await loadConfigs({
-      STORAGE_ENDPOINT: 'http://rustfs:9000',
+      STORAGE_ENDPOINT: 'http://minio:9000',
       STORAGE_PUBLIC_ENDPOINT: 'http://localhost:9000',
       STORAGE_REGION: 'sa-east-1',
       STORAGE_BUCKET: 'videos-bucket',
@@ -69,7 +69,7 @@ describe('storage, queue and video config namespaces', () => {
     });
 
     expect(storage).toEqual({
-      endpoint: 'http://rustfs:9000',
+      endpoint: 'http://minio:9000',
       publicEndpoint: 'http://localhost:9000',
       region: 'sa-east-1',
       bucket: 'videos-bucket',

@@ -41,11 +41,11 @@ _Cache de documentação gerado por `/plan-resolve 03` (execução não interati
 - `@nestjs/bullmq` 12.x é publicado só como ESM (`"type": "module"`), e o Jest do projeto (CommonJS via `ts-jest`) não carrega o pacote (`SyntaxError: Unexpected token 'export'`). A linha 11.x é CommonJS, corresponde ao NestJS 11 instalado e a 11.0.5 já aceita `bullmq` ^6. A API usada (`BullModule.forRootAsync`, `registerQueue`, `@InjectQueue`, `@Processor`/`WorkerHost`, `@OnWorkerEvent`) é a mesma.
 - Na `bullmq` 6.x o `ioredis` virou peer opcional; sem ele a fila falha com `BullMQ could not load the optional 'ioredis' package`. Instalado `ioredis@5.11.1` (versão exata, `--ignore-scripts`).
 
-Usado por: `phase-03-videos/TD-01`, `TD-02`, `TD-04`, `TD-08`, `TD-11`, `TD-12` (S3) e `TD-03`, `TD-06`, `TD-09`, `TD-14` (fila). O servidor S3 é o RustFS (`TD-01`, Option C); o código fala só a API S3.
+Usado por: `phase-03-videos/TD-01`, `TD-02`, `TD-04`, `TD-08`, `TD-11`, `TD-12` (S3) e `TD-03`, `TD-06`, `TD-09`, `TD-14` (fila). O servidor S3 é o MinIO via `pgsty/minio` (`TD-01`, Option A, revisão pós-implementação); o código fala só a API S3.
 
 ### @aws-sdk/client-s3
 
-- **Cliente para storage S3 compatível (RustFS):** `new S3Client({ endpoint, region, forcePathStyle: true, credentials: { accessKeyId, secretAccessKey } })`. `forcePathStyle` (antigo `s3ForcePathStyle` do v2) coloca o bucket no path, necessário para endpoints como `http://rustfs:9000`. Pelo TD-02 existem dois clientes: um com o endpoint interno (nome do serviço do Compose) para chamadas da API e do worker, e outro com o endpoint público usado só para assinar URLs entregues ao cliente (o `Host` faz parte da assinatura).
+- **Cliente para storage S3 compatível (MinIO):** `new S3Client({ endpoint, region, forcePathStyle: true, credentials: { accessKeyId, secretAccessKey } })`. `forcePathStyle` (antigo `s3ForcePathStyle` do v2) coloca o bucket no path, necessário para endpoints como `http://minio:9000`. Pelo TD-02 existem dois clientes: um com o endpoint interno (nome do serviço do Compose) para chamadas da API e do worker, e outro com o endpoint público usado só para assinar URLs entregues ao cliente (o `Host` faz parte da assinatura).
 - **Multipart (TD-04):**
   - `CreateMultipartUploadCommand({ Bucket, Key, ContentType })` retorna `UploadId`.
   - `UploadPartCommand({ Bucket, Key, UploadId, PartNumber })`: `PartNumber` entre 1 e 10.000; partes de 5 MiB a 5 GiB (exceto a última).
@@ -60,7 +60,7 @@ Usado por: `phase-03-videos/TD-01`, `TD-02`, `TD-04`, `TD-08`, `TD-11`, `TD-12` 
 - `getSignedUrl(client, command, { expiresIn })`; `expiresIn` em segundos, padrão 900. Funciona para qualquer comando S3 (`UploadPartCommand`, `GetObjectCommand`, `PutObjectCommand`).
 - **URLs de parte (TD-04):** `getSignedUrl(publicClient, new UploadPartCommand({ Bucket, Key, UploadId, PartNumber }), { expiresIn: 3600 })`. O presigner sempre usa `X-Amz-Content-Sha256: UNSIGNED-PAYLOAD` e não assina `content-type`: a integridade da parte não é verificada pela assinatura, por isso o tamanho total é conferido com `HeadObject` na conclusão e o conteúdo pelo `ffprobe` no worker. Cabeçalhos `x-amz-*` que precisem ser obrigatórios vão em `unhoistableHeaders`.
 - **Leitura pelo worker (TD-08):** `getSignedUrl(internalClient, new GetObjectCommand({ Bucket, Key }), { expiresIn })` com o endpoint interno, passada como entrada para `ffprobe`/`ffmpeg` (leitura por Range via HTTP).
-- **Download (TD-12):** `getSignedUrl(publicClient, new GetObjectCommand({ Bucket, Key, ResponseContentDisposition: 'attachment; filename="..."' }), { expiresIn })` e resposta `302`. Se o RustFS não honrar `response-content-disposition`, aplicar o plano B registrado na revisão do TD-12 (proxy com `Content-Disposition: attachment`).
+- **Download (TD-12):** `getSignedUrl(publicClient, new GetObjectCommand({ Bucket, Key, ResponseContentDisposition: 'attachment; filename="..."' }), { expiresIn })` e resposta `302`. Se o MinIO não honrar `response-content-disposition`, aplicar o plano B registrado na revisão do TD-12 (proxy com `Content-Disposition: attachment`).
 - Não há verificação de expiração das credenciais contra `expiresIn`; com credenciais estáticas do storage isso não é problema.
 
 ### @nestjs/bullmq

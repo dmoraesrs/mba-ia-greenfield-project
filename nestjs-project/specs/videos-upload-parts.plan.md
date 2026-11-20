@@ -10,7 +10,7 @@ target_file: test/videos-upload-parts.e2e-spec.ts
 
 ## Application Overview
 
-Os endpoints de partes permitem retomar um upload multipart interrompido: `GET /videos/:id/upload/parts` lista as partes que o RustFS já recebeu (`ListParts`) e `POST /videos/:id/upload/parts` reassina URLs para partes que faltam ou cujas URLs expiraram. Só o dono do vídeo acessa (outro usuário recebe `404 VIDEO_NOT_FOUND`, sem revelar existência) e só enquanto o vídeo está em `draft`.
+Os endpoints de partes permitem retomar um upload multipart interrompido: `GET /videos/:id/upload/parts` lista as partes que o MinIO já recebeu (`ListParts`) e `POST /videos/:id/upload/parts` reassina URLs para partes que faltam ou cujas URLs expiraram. Só o dono do vídeo acessa (outro usuário recebe `404 VIDEO_NOT_FOUND`, sem revelar existência) e só enquanto o vídeo está em `draft`.
 
 ## Test Scenarios
 
@@ -25,7 +25,7 @@ Os endpoints de partes permitem retomar um upload multipart interrompido: `GET /
 **Last sync:** 2026-11-20T03:29:19Z
 
 **Steps:**
-  1. `PUT` de um buffer de 5242880 bytes na URL assinada da parte 1 (`fetch`, direto ao RustFS)
+  1. `PUT` de um buffer de 5242880 bytes na URL assinada da parte 1 (`fetch`, direto ao MinIO)
     - expect: status `200` e cabeçalho `ETag` presente
   2. GET /videos/{id}/upload/parts com o token do dono
     - expect: status `200`

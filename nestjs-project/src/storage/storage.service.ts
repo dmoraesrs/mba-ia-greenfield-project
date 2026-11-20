@@ -63,7 +63,7 @@ export interface SignGetObjectOptions {
 }
 
 /**
- * Adapter S3 (RustFS em desenvolvimento). Usa dois clientes: o interno, pelo nome
+ * Adapter S3 (MinIO em desenvolvimento). Usa dois clientes: o interno, pelo nome
  * do serviço do Compose, para todas as chamadas; e o público, apenas para assinar
  * URLs entregues ao cliente (o host faz parte da assinatura).
  */
