@@ -1,5 +1,7 @@
 import {
+  AbortMultipartUploadCommand,
   DeleteObjectsCommand,
+  ListMultipartUploadsCommand,
   ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -48,7 +50,10 @@ export function testStorageConfig(): ConfigType<typeof storageConfig> {
   };
 }
 
-/** Remove todos os objetos do bucket de teste (usar em `afterAll`). */
+/**
+ * Remove todos os objetos e aborta os uploads multipart abertos do bucket de
+ * teste (usar em `afterAll`).
+ */
 export async function emptyTestBucket(): Promise<void> {
   const config = testStorageConfig();
   const client = new S3Client({
@@ -82,6 +87,30 @@ export async function emptyTestBucket(): Promise<void> {
       }
       token = page.IsTruncated ? page.NextContinuationToken : undefined;
     } while (token);
+
+    let keyMarker: string | undefined;
+    let uploadIdMarker: string | undefined;
+    do {
+      const page = await client.send(
+        new ListMultipartUploadsCommand({
+          Bucket: config.bucket,
+          KeyMarker: keyMarker,
+          UploadIdMarker: uploadIdMarker,
+        }),
+      );
+      for (const upload of page.Uploads ?? []) {
+        if (!upload.Key || !upload.UploadId) continue;
+        await client.send(
+          new AbortMultipartUploadCommand({
+            Bucket: config.bucket,
+            Key: upload.Key,
+            UploadId: upload.UploadId,
+          }),
+        );
+      }
+      keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
+      uploadIdMarker = page.IsTruncated ? page.NextUploadIdMarker : undefined;
+    } while (keyMarker);
   } finally {
     client.destroy();
   }
