@@ -196,7 +196,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.7 — Endpoint POST /videos (início do upload e pré-cadastro como rascunho)
 
 **Route:** POST /videos
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-create.plan.md`
 **Authorization:** Authenticated (per `### Authorization Matrix`)
 
 **Description:** Ao iniciar o upload, cria o vídeo como rascunho no canal do usuário, inicia o multipart no storage e devolve as URLs pré-assinadas de todas as partes, sem que o arquivo passe pela API.
@@ -230,7 +230,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.8 — Endpoints de partes do upload (listar e reassinar)
 
 **Route:** GET /videos/:id/upload/parts, POST /videos/:id/upload/parts
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-upload-parts.plan.md`
 **Authorization:** Owner (per `### Authorization Matrix`)
 
 **Description:** Permite retomar um upload interrompido: o cliente descobre quais partes o storage já recebeu e pede novas URLs para as que faltam ou cujas URLs expiraram.
@@ -263,7 +263,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.9 — Endpoint POST /videos/:id/upload/complete (conclusão, conferência de tamanho e enfileiramento)
 
 **Route:** POST /videos/:id/upload/complete
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-upload-complete.plan.md`
 **Authorization:** Owner (per `### Authorization Matrix`)
 
 **Description:** Conclui o multipart, confere o tamanho real do objeto contra o declarado e o limite de 10GB e, se estiver tudo certo, passa o vídeo para `processing` e enfileira o processamento automático.
@@ -388,7 +388,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.13 — Endpoints de consulta: GET /videos/:id (dono) e GET /videos/public/:publicId
 
 **Route:** GET /videos/:id, GET /videos/public/:publicId
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-get.plan.md`
 **Authorization:** Owner em `GET /videos/:id`; Anonymous em `GET /videos/public/:publicId` (per `### Authorization Matrix`)
 
 **Description:** Expõe ao dono o acompanhamento do processamento (status, metadados, motivo de falha) e a qualquer pessoa com o link os dados públicos do vídeo `ready`, identificado pela URL única.
@@ -419,7 +419,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.14 — Endpoints de streaming com Range (206) e de thumbnail
 
 **Route:** GET /videos/public/:publicId/stream, GET /videos/public/:publicId/thumbnail
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-public-stream.plan.md`
 **Authorization:** Anonymous (per `### Authorization Matrix`)
 
 **Description:** Entrega a reprodução via streaming sem download completo, repassando o `Range` do cliente ao storage e respondendo `206 Partial Content`, e serve a thumbnail gerada pelo worker.
@@ -454,7 +454,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 ### SI-03.15 — Endpoint de download (302 para URL pré-assinada com attachment)
 
 **Route:** GET /videos/public/:publicId/download
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-public-download.plan.md`
 **Authorization:** Anonymous (per `### Authorization Matrix`)
 
 **Description:** Permite ao usuário baixar o vídeo sem que os bytes passem pela API, redirecionando para uma URL pré-assinada de curta duração com `Content-Disposition: attachment`.
