@@ -26,6 +26,7 @@ import {
   VideoResponseDto,
 } from './dto/video-response.dto';
 import { type Video, VideoStatus } from './entities/video.entity';
+import { attachmentDisposition } from './content-disposition';
 import { PublicVideoResponseDto } from './dto/public-video-response.dto';
 import { isValidPublicId } from './public-id';
 import { VideoProcessingQueue } from './video-processing.queue';
@@ -222,6 +223,21 @@ export class VideosService {
     return PublicVideoResponseDto.fromEntity(
       await this.getReadyVideo(publicId),
     );
+  }
+
+  /**
+   * URL pré-assinada de curta duração (endpoint público) que entrega o arquivo
+   * original como `attachment`; os bytes não passam pela API.
+   */
+  async getDownloadUrl(publicId: string): Promise<string> {
+    const video = await this.getReadyVideo(publicId);
+    return this.storageService.signGetObject(video.storage_key, {
+      internal: false,
+      expiresIn: this.config.downloadUrlExpirationSeconds,
+      responseContentDisposition: attachmentDisposition(
+        video.original_filename,
+      ),
+    });
   }
 
   /**

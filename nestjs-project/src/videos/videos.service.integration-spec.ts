@@ -3,7 +3,11 @@ import { DataSource } from 'typeorm';
 import { StorageService } from '../storage/storage.service';
 import { cleanAllTables } from '../test/create-test-data-source';
 import { emptyTestBucket, obliterateTestQueues } from '../test/test-infra';
-import { createUserWithChannel } from '../test/video-fixtures';
+import {
+  createUserWithChannel,
+  SAMPLE_METADATA,
+  seedVideo,
+} from '../test/video-fixtures';
 import { createVideosTestingModule } from '../test/videos-test-module';
 import { Video, VideoStatus } from './entities/video.entity';
 import { getQueueToken } from '@nestjs/bullmq';
@@ -168,6 +172,31 @@ describe('VideosService (integration)', () => {
         StorageObjectNotFoundError,
       );
       expect(await queue.getJob(created.video.id)).toBeUndefined();
+    });
+  });
+
+  describe('getDownloadUrl', () => {
+    it('should return a presigned URL that serves the file as an attachment', async () => {
+      const { channel } = await createUserWithChannel(dataSource);
+      const content = Buffer.from('fake mp4 bytes for download');
+      const video = await seedVideo(dataSource, channel.id, {
+        status: VideoStatus.READY,
+        original_filename: 'meu-video.mp4',
+        size_bytes: content.length,
+        duration_seconds: 2,
+        metadata: { ...SAMPLE_METADATA, size_bytes: content.length },
+      });
+      await storage.putObject(video.storage_key, content, 'video/mp4');
+
+      const url = await service.getDownloadUrl(video.public_id);
+      const response = await fetch(url);
+      const body = Buffer.from(await response.arrayBuffer());
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-disposition')).toMatch(
+        /^attachment; filename="meu-video.mp4"/,
+      );
+      expect(body.equals(content)).toBe(true);
     });
   });
 });

@@ -189,6 +189,33 @@ export class VideosController {
     );
   }
 
+  @Public()
+  @Get('public/:publicId/download')
+  @ApiParam({ name: 'publicId', example: 'dQw4w9WgXcQ' })
+  @ApiOperation({
+    summary: 'Download a ready video',
+    description:
+      'Redirects (302) to a short-lived presigned URL that serves the original file with Content-Disposition: attachment. No authentication required.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to the presigned download URL (Location header)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Invalid public id, unknown video or video not ready',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async download(
+    @Param('publicId') publicId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    res.redirect(
+      HttpStatus.FOUND,
+      await this.videosService.getDownloadUrl(publicId),
+    );
+  }
+
   @Get(':id')
   @ApiBearerAuth('access-token')
   @ApiParam({ name: 'id', format: 'uuid', description: 'Video id' })
