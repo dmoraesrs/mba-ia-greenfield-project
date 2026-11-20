@@ -19,12 +19,14 @@ import {
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
+import { CompleteUploadDto } from './dto/complete-upload.dto';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { SignPartsDto } from './dto/sign-parts.dto';
 import {
   CreateVideoResponseDto,
   SignPartsResponseDto,
   UploadedPartsResponseDto,
+  VideoResponseDto,
 } from './dto/video-response.dto';
 import { VideosService } from './videos.service';
 
@@ -144,5 +146,54 @@ export class VideosController {
     @Body() dto: SignPartsDto,
   ): Promise<SignPartsResponseDto> {
     return this.videosService.signParts(user.sub, id, dto.part_numbers);
+  }
+
+  @Post(':id/upload/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Video id' })
+  @ApiOperation({
+    summary: 'Complete a video upload',
+    description:
+      'Completes the multipart upload, checks the real object size against the declared size and the 10GB limit, moves the video to processing and enqueues the automatic processing job.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Upload completed; video is processing',
+    type: VideoResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation failed (VALIDATION_ERROR) or the storage rejected the part list (INVALID_UPLOAD_PARTS); the video stays in draft',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid access token',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found or owned by another user',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not in draft status (includes a second completion)',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 422,
+    description:
+      'Real size differs from the declared size (UPLOAD_SIZE_MISMATCH) or exceeds 10GB (UPLOAD_TOO_LARGE); the object is deleted and the video fails',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async completeUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteUploadDto,
+  ): Promise<VideoResponseDto> {
+    return this.videosService.completeUpload(user.sub, id, dto);
   }
 }

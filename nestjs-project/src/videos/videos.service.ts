@@ -4,13 +4,20 @@ import { randomUUID } from 'node:crypto';
 import { ChannelsService } from '../channels/channels.service';
 import {
   InvalidPartNumberException,
+  InvalidUploadPartsException,
+  UploadSizeMismatchException,
+  UploadTooLargeException,
   VideoNotFoundException,
   VideoNotInDraftException,
 } from '../common/exceptions/domain.exception';
 import videoConfig from '../config/video.config';
 import { originalKey } from '../storage/storage-keys';
-import { StorageUploadNotFoundError } from '../storage/storage.errors';
+import {
+  StorageInvalidPartsError,
+  StorageUploadNotFoundError,
+} from '../storage/storage.errors';
 import { StorageService } from '../storage/storage.service';
+import type { CompleteUploadDto } from './dto/complete-upload.dto';
 import type { CreateVideoDto } from './dto/create-video.dto';
 import {
   type CreateVideoResponseDto,
@@ -19,6 +26,8 @@ import {
   VideoResponseDto,
 } from './dto/video-response.dto';
 import { type Video, VideoStatus } from './entities/video.entity';
+import { VideoProcessingQueue } from './video-processing.queue';
+import { VIDEO_FAILURE_REASONS } from './videos.constants';
 import { VideosRepository } from './videos.repository';
 
 interface DraftVideo extends Video {
@@ -31,6 +40,7 @@ export class VideosService {
     private readonly videosRepository: VideosRepository,
     private readonly storageService: StorageService,
     private readonly channelsService: ChannelsService,
+    private readonly videoProcessingQueue: VideoProcessingQueue,
     @Inject(videoConfig.KEY)
     private readonly config: ConfigType<typeof videoConfig>,
   ) {}
@@ -128,6 +138,84 @@ export class VideosService {
       throw new InvalidPartNumberException();
     }
     return this.signPartUrls(video.storage_key, video.upload_id, partNumbers);
+  }
+
+  /**
+   * Conclui o multipart, confere o tamanho real contra o declarado e o limite
+   * de 10 GiB e, se estiver tudo certo, passa o vídeo para `processing` e
+   * enfileira o processamento.
+   */
+  async completeUpload(
+    userId: string,
+    id: string,
+    dto: CompleteUploadDto,
+  ): Promise<VideoResponseDto> {
+    const video = await this.findOwnedDraft(userId, id);
+
+    try {
+      await this.storageService.completeMultipartUpload(
+        video.storage_key,
+        video.upload_id,
+        [...dto.parts]
+          .sort((a, b) => a.part_number - b.part_number)
+          .map((p) => ({ partNumber: p.part_number, etag: p.etag })),
+      );
+    } catch (err) {
+      if (err instanceof StorageInvalidPartsError) {
+        // O vídeo continua em draft: o cliente pode reenviar/corrigir as partes.
+        throw new InvalidUploadPartsException();
+      }
+      throw this.translateUploadError(err);
+    }
+
+    const { contentLength } = await this.storageService.headObject(
+      video.storage_key,
+    );
+    if (contentLength > this.config.maxSizeBytes) {
+      await this.rejectUploadedObject(
+        video,
+        VIDEO_FAILURE_REASONS.UPLOAD_TOO_LARGE,
+      );
+      throw new UploadTooLargeException();
+    }
+    if (contentLength !== video.size_bytes) {
+      await this.rejectUploadedObject(
+        video,
+        VIDEO_FAILURE_REASONS.UPLOAD_SIZE_MISMATCH,
+      );
+      throw new UploadSizeMismatchException();
+    }
+
+    const moved = await this.videosRepository.updateWhereStatus(
+      video.id,
+      VideoStatus.DRAFT,
+      { status: VideoStatus.PROCESSING, upload_id: null },
+    );
+    if (!moved) {
+      // Corrida com a expiração de rascunhos: o vídeo saiu de draft no meio.
+      throw new VideoNotInDraftException();
+    }
+    // Sem atomicidade entre Postgres e fila: se o add falhar, o vídeo fica em
+    // processing sem job (limitação conhecida, registrada no progress da fase).
+    await this.videoProcessingQueue.enqueue(video.id);
+
+    const updated = await this.videosRepository.findById(video.id);
+    if (!updated) {
+      throw new VideoNotFoundException();
+    }
+    return VideoResponseDto.fromEntity(updated);
+  }
+
+  private async rejectUploadedObject(
+    video: Video,
+    failureReason: string,
+  ): Promise<void> {
+    await this.storageService.deleteObject(video.storage_key);
+    await this.videosRepository.updateWhereStatus(video.id, VideoStatus.DRAFT, {
+      status: VideoStatus.FAILED,
+      failure_reason: failureReason,
+      upload_id: null,
+    });
   }
 
   private async findOwnedDraft(

@@ -5,11 +5,18 @@ import videoConfig from '../config/video.config';
 import { StorageService } from '../storage/storage.service';
 import {
   InvalidPartNumberException,
+  InvalidUploadPartsException,
+  UploadSizeMismatchException,
+  UploadTooLargeException,
   VideoNotFoundException,
   VideoNotInDraftException,
 } from '../common/exceptions/domain.exception';
-import { StorageUploadNotFoundError } from '../storage/storage.errors';
+import {
+  StorageInvalidPartsError,
+  StorageUploadNotFoundError,
+} from '../storage/storage.errors';
 import { type Video, VideoStatus } from './entities/video.entity';
+import { VideoProcessingQueue } from './video-processing.queue';
 import { VideosRepository } from './videos.repository';
 import { VideosService } from './videos.service';
 
@@ -22,11 +29,22 @@ interface StorageMock {
   >;
   signUploadParts: jest.MockedFunction<StorageService['signUploadParts']>;
   listParts: jest.MockedFunction<StorageService['listParts']>;
+  completeMultipartUpload: jest.MockedFunction<
+    StorageService['completeMultipartUpload']
+  >;
+  headObject: jest.MockedFunction<StorageService['headObject']>;
+  deleteObject: jest.MockedFunction<StorageService['deleteObject']>;
 }
 
 interface RepositoryMock {
   createDraft: jest.MockedFunction<VideosRepository['createDraft']>;
   findOwnedById: jest.MockedFunction<VideosRepository['findOwnedById']>;
+  findById: jest.MockedFunction<VideosRepository['findById']>;
+  updateWhereStatus: jest.MockedFunction<VideosRepository['updateWhereStatus']>;
+}
+
+interface QueueMock {
+  enqueue: jest.MockedFunction<VideoProcessingQueue['enqueue']>;
 }
 
 const USER_ID = 'user-1';
@@ -48,10 +66,28 @@ function draftFrom(
   } as Video;
 }
 
+function ownedDraft(overrides: Partial<Video> = {}): Video {
+  return {
+    ...draftFrom({
+      id: 'video-1',
+      channel_id: CHANNEL.id,
+      original_filename: 'a.mp4',
+      mime_type: 'video/mp4',
+      size_bytes: 134217728,
+      storage_key: 'videos/video-1/original',
+      upload_id: 'upload-1',
+      part_size_bytes: 67108864,
+      part_count: 2,
+    }),
+    ...overrides,
+  };
+}
+
 describe('VideosService', () => {
   let service: VideosService;
   let storage: StorageMock;
   let repository: RepositoryMock;
+  let queue: QueueMock;
 
   beforeEach(async () => {
     storage = {
@@ -67,17 +103,24 @@ describe('VideosService', () => {
           ),
       ),
       listParts: jest.fn().mockResolvedValue([]),
+      completeMultipartUpload: jest.fn().mockResolvedValue(undefined),
+      headObject: jest.fn(),
+      deleteObject: jest.fn().mockResolvedValue(undefined),
     };
     repository = {
       createDraft: jest.fn((data) => Promise.resolve(draftFrom(data))),
       findOwnedById: jest.fn().mockResolvedValue(null),
+      findById: jest.fn(),
+      updateWhereStatus: jest.fn().mockResolvedValue(true),
     };
+    queue = { enqueue: jest.fn().mockResolvedValue(undefined) };
 
     const module = await Test.createTestingModule({
       providers: [
         VideosService,
         { provide: VideosRepository, useValue: repository },
         { provide: StorageService, useValue: storage },
+        { provide: VideoProcessingQueue, useValue: queue },
         {
           provide: ChannelsService,
           useValue: { findByUserId: jest.fn().mockResolvedValue(CHANNEL) },
@@ -156,21 +199,6 @@ describe('VideosService', () => {
   });
 
   describe('listUploadedParts and signParts', () => {
-    const ownedDraft = (overrides: Partial<Video> = {}): Video => ({
-      ...draftFrom({
-        id: 'video-1',
-        channel_id: CHANNEL.id,
-        original_filename: 'a.mp4',
-        mime_type: 'video/mp4',
-        size_bytes: 134217728,
-        storage_key: 'videos/video-1/original',
-        upload_id: 'upload-1',
-        part_size_bytes: 67108864,
-        part_count: 2,
-      }),
-      ...overrides,
-    });
-
     it('should throw VideoNotFoundException when the video is not owned by the user', async () => {
       repository.findOwnedById.mockResolvedValue(null);
 
@@ -252,6 +280,108 @@ describe('VideosService', () => {
       await expect(service.listUploadedParts(USER_ID, 'video-1')).rejects.toBe(
         storageDown,
       );
+    });
+  });
+
+  describe('completeUpload', () => {
+    const SIZE = 134217728;
+    const parts = [
+      { part_number: 2, etag: '"e2"' },
+      { part_number: 1, etag: '"e1"' },
+    ];
+
+    beforeEach(() => {
+      repository.findOwnedById.mockResolvedValue(ownedDraft());
+      repository.findById.mockResolvedValue(
+        ownedDraft({ status: VideoStatus.PROCESSING, upload_id: null }),
+      );
+      storage.headObject.mockResolvedValue({ contentLength: SIZE });
+    });
+
+    it('should complete the multipart upload with parts sorted by part_number', async () => {
+      await service.completeUpload(USER_ID, 'video-1', { parts });
+
+      expect(storage.completeMultipartUpload).toHaveBeenCalledWith(
+        'videos/video-1/original',
+        'upload-1',
+        [
+          { partNumber: 1, etag: '"e1"' },
+          { partNumber: 2, etag: '"e2"' },
+        ],
+      );
+    });
+
+    it('should move the video to processing and enqueue the processing job', async () => {
+      const result = await service.completeUpload(USER_ID, 'video-1', {
+        parts,
+      });
+
+      expect(repository.updateWhereStatus).toHaveBeenCalledWith(
+        'video-1',
+        VideoStatus.DRAFT,
+        { status: VideoStatus.PROCESSING, upload_id: null },
+      );
+      expect(queue.enqueue).toHaveBeenCalledWith('video-1');
+      expect(result.status).toBe(VideoStatus.PROCESSING);
+    });
+
+    it('should keep the video in draft and throw INVALID_UPLOAD_PARTS when the storage rejects the parts', async () => {
+      storage.completeMultipartUpload.mockRejectedValue(
+        new StorageInvalidPartsError(),
+      );
+
+      await expect(
+        service.completeUpload(USER_ID, 'video-1', { parts }),
+      ).rejects.toBeInstanceOf(InvalidUploadPartsException);
+      expect(repository.updateWhereStatus).not.toHaveBeenCalled();
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [SIZE + 1, UploadSizeMismatchException, 'upload_size_mismatch'],
+      [SIZE - 1, UploadSizeMismatchException, 'upload_size_mismatch'],
+      [10737418241, UploadTooLargeException, 'upload_too_large'],
+    ])(
+      'should delete the object, fail the video and not enqueue when the real size is %d',
+      async (realSize, exception, reason) => {
+        storage.headObject.mockResolvedValue({ contentLength: realSize });
+
+        await expect(
+          service.completeUpload(USER_ID, 'video-1', { parts }),
+        ).rejects.toBeInstanceOf(exception);
+        expect(storage.deleteObject).toHaveBeenCalledWith(
+          'videos/video-1/original',
+        );
+        expect(repository.updateWhereStatus).toHaveBeenCalledWith(
+          'video-1',
+          VideoStatus.DRAFT,
+          {
+            status: VideoStatus.FAILED,
+            failure_reason: reason,
+            upload_id: null,
+          },
+        );
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should throw VIDEO_NOT_IN_DRAFT without enqueueing when the conditional update affects no row', async () => {
+      repository.updateWhereStatus.mockResolvedValue(false);
+
+      await expect(
+        service.completeUpload(USER_ID, 'video-1', { parts }),
+      ).rejects.toBeInstanceOf(VideoNotInDraftException);
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('should throw VIDEO_NOT_IN_DRAFT when the multipart upload no longer exists', async () => {
+      storage.completeMultipartUpload.mockRejectedValue(
+        new StorageUploadNotFoundError(),
+      );
+
+      await expect(
+        service.completeUpload(USER_ID, 'video-1', { parts }),
+      ).rejects.toBeInstanceOf(VideoNotInDraftException);
     });
   });
 });

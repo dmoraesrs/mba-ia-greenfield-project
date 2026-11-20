@@ -1,4 +1,4 @@
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, type ConfigType } from '@nestjs/config';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import queueConfig from '../config/queue.config';
@@ -13,7 +13,9 @@ import { VIDEO_TEST_ENTITIES } from './video-fixtures';
  * Módulo de teste com o `VideosModule` real sobre Postgres, RustFS (bucket de
  * teste) e Valkey (prefixo de teste).
  */
-export function createVideosTestingModule(): TestingModuleBuilder {
+export function createVideosTestingModule(
+  options: { video?: Partial<ConfigType<typeof videoConfig>> } = {},
+): TestingModuleBuilder {
   return Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({
@@ -27,5 +29,7 @@ export function createVideosTestingModule(): TestingModuleBuilder {
     .overrideProvider(storageConfig.KEY)
     .useValue(testStorageConfig())
     .overrideProvider(queueConfig.KEY)
-    .useValue(testQueueConfig());
+    .useValue(testQueueConfig())
+    .overrideProvider(videoConfig.KEY)
+    .useValue({ ...videoConfig(), ...options.video });
 }

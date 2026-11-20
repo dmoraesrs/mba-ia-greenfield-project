@@ -70,3 +70,29 @@ export class InvalidPartNumberException extends DomainException {
     );
   }
 }
+
+export class InvalidUploadPartsException extends DomainException {
+  constructor() {
+    super(
+      'INVALID_UPLOAD_PARTS',
+      400,
+      'Uploaded parts are invalid or incomplete',
+    );
+  }
+}
+
+export class UploadSizeMismatchException extends DomainException {
+  constructor() {
+    super(
+      'UPLOAD_SIZE_MISMATCH',
+      422,
+      'Uploaded file size does not match the declared size',
+    );
+  }
+}
+
+export class UploadTooLargeException extends DomainException {
+  constructor() {
+    super('UPLOAD_TOO_LARGE', 422, 'Uploaded file exceeds the 10GB limit');
+  }
+}
