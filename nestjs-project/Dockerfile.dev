@@ -1,9 +1,17 @@
-FROM node:25.6.0-slim
+FROM node:25.6.0-slim@sha256:3746b7c78e343062cbad1a1a9f22e582e2aaeda5b183b7050b5831e22f988730
 
-RUN apt update && apt install -y procps curl
+# ffmpeg/ffprobe: usados pelo video-worker (duração, metadados e thumbnail) e pelos testes.
+# apt-get upgrade e npm global atualizado: a base traz pacotes Debian e dependências do npm
+# com CVEs HIGH/CRITICAL já corrigidas (gate Trivy --severity HIGH,CRITICAL --ignore-unfixed).
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends procps curl ca-certificates ffmpeg \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g --ignore-scripts npm@11.21.2 \
+  && npm cache clean --force
 
 WORKDIR /home/node/app
 
 USER node
 
-CMD [ "tail", "-f", "/dev/null" ] 
+CMD [ "tail", "-f", "/dev/null" ]

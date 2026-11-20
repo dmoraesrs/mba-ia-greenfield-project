@@ -5,6 +5,7 @@ import {
   EmailNotConfirmedException,
   InvalidCredentialsException,
   InvalidTokenException,
+  RangeNotSatisfiableException,
   TokenExpiredException,
   TokenReuseDetectedException,
 } from '../exceptions/domain.exception';
@@ -13,22 +14,27 @@ describe('DomainExceptionFilter', () => {
   let filter: DomainExceptionFilter;
   let mockJson: jest.Mock;
   let mockStatus: jest.Mock;
+  let mockSetHeader: jest.Mock;
   let mockHost: ArgumentsHost;
 
   beforeEach(() => {
     filter = new DomainExceptionFilter();
     mockJson = jest.fn();
     mockStatus = jest.fn().mockReturnValue({ json: mockJson });
+    mockSetHeader = jest.fn();
 
     mockHost = {
       switchToHttp: () => ({
-        getResponse: () => ({ status: mockStatus }),
+        getResponse: () => ({
+          status: mockStatus,
+          setHeader: mockSetHeader,
+        }),
         getRequest: () => ({ url: '/test', method: 'POST' }),
       }),
       getArgs: () => [],
       getArgByIndex: () => null,
-      switchToRpc: () => ({}) as any,
-      switchToWs: () => ({}) as any,
+      switchToRpc: () => ({}),
+      switchToWs: () => ({}),
       getType: () => 'http',
     } as unknown as ArgumentsHost;
   });
@@ -51,7 +57,7 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 401,
       error: 'INVALID_CREDENTIALS',
-      message: expect.any(String),
+      message: expect.any(String) as string,
     });
   });
 
@@ -62,7 +68,7 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 403,
       error: 'EMAIL_NOT_CONFIRMED',
-      message: expect.any(String),
+      message: expect.any(String) as string,
     });
   });
 
@@ -73,7 +79,7 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 401,
       error: 'INVALID_TOKEN',
-      message: expect.any(String),
+      message: expect.any(String) as string,
     });
   });
 
@@ -84,7 +90,7 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 401,
       error: 'TOKEN_EXPIRED',
-      message: expect.any(String),
+      message: expect.any(String) as string,
     });
   });
 
@@ -95,7 +101,28 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 401,
       error: 'TOKEN_REUSE_DETECTED',
-      message: expect.any(String),
+      message: expect.any(String) as string,
     });
+  });
+
+  it('maps RangeNotSatisfiableException to 416 with Content-Range: bytes */{size}', () => {
+    filter.catch(new RangeNotSatisfiableException(47404), mockHost);
+
+    expect(mockSetHeader).toHaveBeenCalledWith(
+      'Content-Range',
+      'bytes */47404',
+    );
+    expect(mockStatus).toHaveBeenCalledWith(416);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 416,
+      error: 'RANGE_NOT_SATISFIABLE',
+      message: 'Requested range not satisfiable',
+    });
+  });
+
+  it('does not set Content-Range for other domain exceptions', () => {
+    filter.catch(new InvalidTokenException(), mockHost);
+
+    expect(mockSetHeader).not.toHaveBeenCalled();
   });
 });
