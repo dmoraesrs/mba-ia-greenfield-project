@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import request from 'supertest';
@@ -10,6 +11,7 @@ import { DomainExceptionFilter } from '../../src/common/filters/domain-exception
 import { ValidationExceptionFilter } from '../../src/common/filters/validation-exception.filter';
 import queueConfig from '../../src/config/queue.config';
 import storageConfig from '../../src/config/storage.config';
+import videoConfig from '../../src/config/video.config';
 import { Channel } from '../../src/channels/entities/channel.entity';
 import { User } from '../../src/users/entities/user.entity';
 import { testQueueConfig, testStorageConfig } from '../../src/test/test-infra';
@@ -30,7 +32,9 @@ export interface AuthenticatedUser {
  * App completa (AppModule) com bucket e prefixo de fila de teste e a mesma
  * configuração global do `main.ts` (pipes e filtros).
  */
-export async function createVideosE2eApp(): Promise<VideosE2eContext> {
+export async function createVideosE2eApp(
+  options: { video?: Partial<ConfigType<typeof videoConfig>> } = {},
+): Promise<VideosE2eContext> {
   const moduleFixture = await Test.createTestingModule({
     imports: [AppModule],
   })
@@ -38,6 +42,8 @@ export async function createVideosE2eApp(): Promise<VideosE2eContext> {
     .useValue(testStorageConfig())
     .overrideProvider(queueConfig.KEY)
     .useValue(testQueueConfig())
+    .overrideProvider(videoConfig.KEY)
+    .useValue({ ...videoConfig(), ...options.video })
     .compile();
 
   const app = moduleFixture.createNestApplication<INestApplication<App>>();
@@ -62,6 +68,20 @@ export function resetThrottler(context: VideosE2eContext): void {
   context.moduleFixture
     .get<ThrottlerStorageService>(ThrottlerStorage)
     .storage.clear();
+}
+
+/** Envia uma parte direto ao storage pela URL assinada; devolve o ETag. */
+export async function putPart(url: string, size: number): Promise<string> {
+  const response = await fetch(url, {
+    method: 'PUT',
+    body: new Uint8Array(size),
+  });
+  if (response.status !== 200) {
+    throw new Error(
+      `PUT part failed: ${response.status} ${await response.text()}`,
+    );
+  }
+  return response.headers.get('etag') ?? '';
 }
 
 /** Registra, confirma (direto no banco) e faz login de um usuário novo. */

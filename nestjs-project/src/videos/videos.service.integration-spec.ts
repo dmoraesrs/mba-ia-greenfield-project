@@ -57,4 +57,31 @@ describe('VideosService (integration)', () => {
       await storage.abortMultipartUpload(row.storage_key, row.upload_id!);
     });
   });
+
+  describe('listUploadedParts', () => {
+    it('should list the part sent through the presigned URL with its etag and size', async () => {
+      const { user } = await createUserWithChannel(dataSource);
+      const created = await service.initiateUpload(user.id, {
+        filename: 'a.mp4',
+        mime_type: 'video/mp4',
+        size_bytes: 134217728,
+      });
+      const body = new Uint8Array(1024);
+      const put = await fetch(created.upload.parts[0].url, {
+        method: 'PUT',
+        body,
+      });
+      expect(put.status).toBe(200);
+
+      const result = await service.listUploadedParts(user.id, created.video.id);
+
+      expect(result.parts).toEqual([
+        {
+          part_number: 1,
+          etag: put.headers.get('etag'),
+          size_bytes: body.length,
+        },
+      ]);
+    });
+  });
 });

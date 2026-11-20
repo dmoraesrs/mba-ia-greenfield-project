@@ -117,3 +117,27 @@ export class CreateVideoResponseDto {
   @ApiProperty({ type: UploadSessionDto })
   upload: UploadSessionDto;
 }
+
+export class UploadedPartDto {
+  @ApiProperty({ example: 1 })
+  part_number: number;
+
+  @ApiProperty({ example: '"9b2cf535f27731c974343645a3985328"' })
+  etag: string;
+
+  @ApiProperty({ example: 67108864 })
+  size_bytes: number;
+}
+
+export class UploadedPartsResponseDto {
+  @ApiProperty({ type: [UploadedPartDto] })
+  parts: UploadedPartDto[];
+}
+
+export class SignPartsResponseDto {
+  @ApiProperty({ type: [SignedPartDto] })
+  parts: SignedPartDto[];
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  expires_at: string;
+}
