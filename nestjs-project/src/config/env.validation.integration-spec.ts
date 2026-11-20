@@ -56,7 +56,7 @@ describe('envValidationSchema — SWAGGER_ENABLED', () => {
   });
 });
 
-describe('envValidationSchema — storage, queue and video variables', () => {
+describe('envValidationSchema: storage, queue and video variables', () => {
   it.each([
     'STORAGE_ENDPOINT',
     'STORAGE_PUBLIC_ENDPOINT',
