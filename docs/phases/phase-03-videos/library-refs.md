@@ -9,13 +9,17 @@ libs:
     context7_id: "/aws/aws-sdk-js-v3"
     fetched_at: "2026-11-20T00:15:30-03:00"
   "@nestjs/bullmq":
-    version: "12.0.1"
+    version: "11.0.5"
     context7_id: "/nestjs/bull"
     fetched_at: "2026-11-20T00:15:30-03:00"
   "bullmq":
     version: "6.7.6"
     context7_id: "/taskforcesh/bullmq"
     fetched_at: "2026-11-20T00:15:30-03:00"
+  "ioredis":
+    version: "5.11.1"
+    context7_id: "n/a (dependência de conexão da bullmq; nenhuma API do ioredis é usada diretamente)"
+    fetched_at: "2026-11-20T01:15:00-03:00"
 sources_mtime:
   docs/decisions/technical-decisions-phase-03-videos.md: "2026-11-20T00:13:41-03:00"
 ---
@@ -28,8 +32,14 @@ _Cache de documentação gerado por `/plan-resolve 03` (execução não interati
 |--------|---------------|--------------|-------------------------------------------|-------------------|
 | `@aws-sdk/client-s3` | `3.1168.0` | 2026-11-12 | `3.1173.0` (2026-11-19) | nenhuma |
 | `@aws-sdk/s3-request-presigner` | `3.1168.0` | 2026-11-12 | `3.1173.0` (2026-11-19) | nenhuma (manter na mesma versão do `client-s3`) |
-| `@nestjs/bullmq` | `12.0.1` | 2026-11-06 | `12.0.2` (2026-11-13) | `@nestjs/common`/`@nestjs/core` `^10 \|\| ^11 \|\| ^12`, `bullmq` `^3..^6` (compatível com Nest 11 instalado) |
-| `bullmq` | `6.7.6` | 2026-11-12 | `6.7.8` (2026-11-19) | opcionais (`ioredis` já é dependência direta da `bullmq`) |
+| `@nestjs/bullmq` | `11.0.5` (revisado na implementação; o plano previa `12.0.1`) | 2026-08-07 | `12.0.2` (2026-11-13) | `@nestjs/common`/`@nestjs/core` `^10 \|\| ^11`, `bullmq` `^3..^6` |
+| `bullmq` | `6.7.6` | 2026-11-12 | `6.7.8` (2026-11-19) | opcionais: `ioredis`, `redis`, `pg`, `bullmq-otel` (na 6.x o `ioredis` deixou de ser dependência direta) |
+| `ioredis` | `5.11.1` (adicionado na implementação) | 2026-06-04 | `6.0.0` (2026-07-31) | nenhuma; a 6.0.0 conflita com o peer opcional `ioredis@^5.0.4` do `typeorm@0.3.28` |
+
+**Revisões feitas no SI-03.5 (implementação):**
+
+- `@nestjs/bullmq` 12.x é publicado só como ESM (`"type": "module"`), e o Jest do projeto (CommonJS via `ts-jest`) não carrega o pacote (`SyntaxError: Unexpected token 'export'`). A linha 11.x é CommonJS, corresponde ao NestJS 11 instalado e a 11.0.5 já aceita `bullmq` ^6. A API usada (`BullModule.forRootAsync`, `registerQueue`, `@InjectQueue`, `@Processor`/`WorkerHost`, `@OnWorkerEvent`) é a mesma.
+- Na `bullmq` 6.x o `ioredis` virou peer opcional; sem ele a fila falha com `BullMQ could not load the optional 'ioredis' package`. Instalado `ioredis@5.11.1` (versão exata, `--ignore-scripts`).
 
 Usado por: `phase-03-videos/TD-01`, `TD-02`, `TD-04`, `TD-08`, `TD-11`, `TD-12` (S3) e `TD-03`, `TD-06`, `TD-09`, `TD-14` (fila). O servidor S3 é o RustFS (`TD-01`, Option C); o código fala só a API S3.
 

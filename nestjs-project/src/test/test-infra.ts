@@ -4,7 +4,35 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import type { ConfigType } from '@nestjs/config';
+import { Queue } from 'bullmq';
+import queueConfig from '../config/queue.config';
 import storageConfig from '../config/storage.config';
+import { ALL_QUEUES } from '../queue/queue.constants';
+
+/**
+ * Config de fila para testes: prefixo próprio (`{QUEUE_PREFIX}-test`), invisível
+ * para o `video-worker` de desenvolvimento.
+ */
+export function testQueueConfig(): ConfigType<typeof queueConfig> {
+  const base = queueConfig();
+  return { ...base, prefix: `${base.prefix}-test` };
+}
+
+/** Apaga todas as filas sob o prefixo de teste (usar em `afterAll`). */
+export async function obliterateTestQueues(): Promise<void> {
+  const config = testQueueConfig();
+  for (const name of ALL_QUEUES) {
+    const queue = new Queue(name, {
+      connection: { host: config.host, port: config.port },
+      prefix: config.prefix,
+    });
+    try {
+      await queue.obliterate({ force: true });
+    } finally {
+      await queue.close();
+    }
+  }
+}
 
 /**
  * Config de storage para testes: bucket próprio (`{STORAGE_BUCKET}-test`) e
