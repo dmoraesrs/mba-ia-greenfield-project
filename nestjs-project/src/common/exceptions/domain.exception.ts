@@ -96,3 +96,9 @@ export class UploadTooLargeException extends DomainException {
     super('UPLOAD_TOO_LARGE', 422, 'Uploaded file exceeds the 10GB limit');
   }
 }
+
+export class RangeNotSatisfiableException extends DomainException {
+  constructor(public readonly size: number) {
+    super('RANGE_NOT_SATISFIABLE', 416, 'Requested range not satisfiable');
+  }
+}

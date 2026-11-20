@@ -7,6 +7,7 @@ import { VIDEO_PROCESSING_QUEUE } from '../queue/queue.constants';
 import { StorageModule } from '../storage/storage.module';
 import { Video } from './entities/video.entity';
 import { VideoProcessingQueue } from './video-processing.queue';
+import { VideoStreamingService } from './video-streaming.service';
 import { VideosController } from './videos.controller';
 import { VideosRepository } from './videos.repository';
 import { VideosService } from './videos.service';
@@ -20,6 +21,11 @@ import { VideosService } from './videos.service';
     ChannelsModule,
   ],
   controllers: [VideosController],
-  providers: [VideosService, VideosRepository, VideoProcessingQueue],
+  providers: [
+    VideosService,
+    VideosRepository,
+    VideoProcessingQueue,
+    VideoStreamingService,
+  ],
 })
 export class VideosModule {}

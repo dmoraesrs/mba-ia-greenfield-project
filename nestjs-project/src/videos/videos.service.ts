@@ -220,7 +220,7 @@ export class VideosService {
   /** Dados públicos de um vídeo `ready` pelo identificador da URL única. */
   async getPublic(publicId: string): Promise<PublicVideoResponseDto> {
     return PublicVideoResponseDto.fromEntity(
-      await this.findReadyByPublicId(publicId),
+      await this.getReadyVideo(publicId),
     );
   }
 
@@ -228,7 +228,7 @@ export class VideosService {
    * Formato inválido, inexistente ou fora de `ready` resultam no mesmo
    * `VIDEO_NOT_FOUND`, sem revelar a existência do vídeo.
    */
-  private async findReadyByPublicId(publicId: string): Promise<Video> {
+  async getReadyVideo(publicId: string): Promise<Video> {
     const video = isValidPublicId(publicId)
       ? await this.videosRepository.findReadyByPublicId(publicId)
       : null;
