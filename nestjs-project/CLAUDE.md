@@ -13,8 +13,8 @@ docker compose ps   # all services must show status "running"
 Then verify each infrastructure service is actually ready to accept connections — not just running:
 
 - **PostgreSQL:** `docker compose exec db pg_isready -U streamtube` — expect `accepting connections`
-- **Valkey (fila BullMQ):** `docker compose exec valkey valkey-cli ping` — expect `PONG` (e `CONFIG GET maxmemory-policy` deve responder `noeviction`)
-- **RustFS (object storage S3):** `docker compose exec rustfs curl -fsS http://localhost:9000/health` — expect HTTP 200
+- **Valkey (fila BullMQ):** `docker compose exec valkey valkey-cli ping`: expect `PONG` (e `CONFIG GET maxmemory-policy` deve responder `noeviction`)
+- **RustFS (object storage S3):** `docker compose exec rustfs curl -fsS http://localhost:9000/health`: expect HTTP 200
 
 Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment".
 
@@ -35,10 +35,10 @@ docker compose exec nestjs-api npm run start:dev
 
 Services:
 - `nestjs-api` — NestJS API, port `3000`
-- `video-worker` — mesmo código e imagem da API com entrypoint próprio (`src/worker.ts`, `npm run start:worker:dev`); consome as filas `video-processing` e `video-maintenance` e roda FFmpeg. Sobe junto com `docker compose up -d` (é infraestrutura de processamento, não o servidor HTTP). Compila em `dist-worker/` para não disputar o `dist/` da API
+- `video-worker`: mesmo código e imagem da API com entrypoint próprio (`src/worker.ts`, `npm run start:worker:dev`); consome as filas `video-processing` e `video-maintenance` e roda FFmpeg. Sobe junto com `docker compose up -d` (é infraestrutura de processamento, não o servidor HTTP). Compila em `dist-worker/` para não disputar o `dist/` da API
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
-- `valkey` — Valkey (Redis compatível) da fila BullMQ, sem porta no host; acesso pelo nome do serviço (`QUEUE_HOST=valkey`)
-- `rustfs` — object storage compatível com S3 (vídeos e thumbnails), portas `9000` (API S3) e `9001` (console); a API e o worker usam `STORAGE_ENDPOINT=http://rustfs:9000`, e as URLs pré-assinadas entregues ao cliente usam `STORAGE_PUBLIC_ENDPOINT`
+- `valkey`: Valkey (Redis compatível) da fila BullMQ, sem porta no host; acesso pelo nome do serviço (`QUEUE_HOST=valkey`)
+- `rustfs`: object storage compatível com S3 (vídeos e thumbnails), portas `9000` (API S3) e `9001` (console); a API e o worker usam `STORAGE_ENDPOINT=http://rustfs:9000`, e as URLs pré-assinadas entregues ao cliente usam `STORAGE_PUBLIC_ENDPOINT`
 
 All verification and teardown commands run on the **host machine**:
 

@@ -57,6 +57,34 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Vídeos: upload, processamento e streaming (Fase 03)
+
+### Infraestrutura no Compose
+
+| Serviço | Papel | Porta no host |
+|---------|-------|---------------|
+| `rustfs` | Object storage compatível com S3 (vídeos e thumbnails), imagem `rustfs/rustfs:1.0.5` fixada por digest | `9000` (API S3) e `9001` (console) |
+| `valkey` | Servidor da fila BullMQ (`maxmemory-policy noeviction`) | nenhuma: acesso só pela rede do Compose (`QUEUE_HOST=valkey`) |
+| `video-worker` | Mesmo código da API com entrypoint `src/worker.ts`; consome as filas e roda FFmpeg | nenhuma |
+
+As credenciais do storage (`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`) vêm do `.env` (veja `.env.example`). A API e o worker falam com o storage por `STORAGE_ENDPOINT=http://rustfs:9000`; as URLs pré-assinadas entregues ao cliente usam `STORAGE_PUBLIC_ENDPOINT` (em desenvolvimento, `http://localhost:9000`). Logs do worker: `docker compose logs video-worker`.
+
+### Fluxo de upload (o arquivo nunca passa pela API)
+
+1. `POST /videos` com `{ filename, mime_type, size_bytes }` (MP4, WebM, QuickTime ou Matroska, até 10 GiB): cria o vídeo como `draft` e devolve as URLs pré-assinadas das partes (64 MiB cada).
+2. O cliente envia cada parte com `PUT {url}` direto ao storage e guarda o cabeçalho `ETag`. Para retomar: `GET /videos/:id/upload/parts` lista o que já chegou e `POST /videos/:id/upload/parts` reassina partes.
+3. `POST /videos/:id/upload/complete` com `{ parts: [{ part_number, etag }] }`: confere o tamanho real e enfileira o processamento (`processing`).
+4. O `video-worker` extrai duração e metadados com `ffprobe`, gera a thumbnail com `ffmpeg` e marca `ready` (ou `failed` com motivo). Acompanhe por `GET /videos/:id`.
+5. Reprodução e download pela URL única: `GET /videos/public/:publicId`, `.../stream` (suporta `Range`, responde `206`), `.../thumbnail` e `.../download` (redirect `302` para URL pré-assinada com `Content-Disposition: attachment`).
+
+Rascunhos não concluídos em `UPLOAD_EXPIRATION_HOURS` (padrão 24 h) são expirados por um job agendado (`failed`, `upload_expired`).
+
+### Riscos e decisões registrados
+
+- **Servidor S3 trocável por configuração** (`phase-03-videos/TD-01`): o RustFS substitui o MinIO por causa do gate de segurança de imagem; o código usa só a API S3 (`@aws-sdk/client-s3`), então trocar por S3 ou outro servidor compatível é questão de variáveis de ambiente.
+- **Streaming pela API** (`phase-03-videos/TD-11`): o diagrama de arquitetura prevê o frontend lendo direto do storage; nesta fase o streaming passa pela API (proxy com `Range`), o que consome banda e conexões da API.
+- **Acesso por link a vídeos `ready`** (`phase-03-videos/TD-13`): até a Fase 04 introduzir publicação e visibilidade, qualquer pessoa com o `public_id` acessa um vídeo pronto (equivalente a "não listado"), protegido apenas pela não enumerabilidade do identificador.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

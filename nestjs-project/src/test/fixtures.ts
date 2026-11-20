@@ -69,7 +69,18 @@ export async function generateSampleVideo(
   }
   args.push('-t', String(seconds), '-c:v', 'libx264', '-pix_fmt', 'yuv420p');
   if (videoBitrate) {
-    args.push('-b:v', videoBitrate);
+    // O testsrc comprime demais: ruído temporal + teto de taxa fazem o
+    // arquivo chegar perto de `bitrate * seconds`.
+    args.push(
+      '-vf',
+      'noise=alls=100:allf=t+u',
+      '-b:v',
+      videoBitrate,
+      '-maxrate',
+      videoBitrate,
+      '-bufsize',
+      videoBitrate,
+    );
   }
   if (withAudio) {
     args.push('-c:a', 'aac');

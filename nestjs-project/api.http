@@ -14,6 +14,11 @@
 @confirmationToken = <token do e-mail de confirmacao>
 @resetToken = <token do e-mail de reset>
 
+# Vídeos: preenchidos automaticamente pelas respostas nomeadas abaixo
+@videoId = {{createVideo.response.body.$.video.id}}
+@publicId = {{createVideo.response.body.$.video.public_id}}
+@etagPart1 = <cabeçalho ETag devolvido pelo PUT da parte 1>
+
 
 ###
 # ─────────────────────────────────────────────
@@ -118,3 +123,76 @@ Content-Type: {{contentType}}
   "token": "{{resetToken}}",
   "new_password": "new-password123"
 }
+
+
+###
+# ─────────────────────────────────────────────
+# VÍDEOS (FASE 03)
+# Fluxo: iniciar upload -> PUT das partes direto no storage -> concluir -> acompanhar
+# Storage (RustFS): API S3 em http://localhost:9000, console em http://localhost:9001
+# ─────────────────────────────────────────────
+
+### 10. Iniciar upload: cria o rascunho e devolve as URLs das partes (64 MiB cada)
+# @name createVideo
+POST {{baseUrl}}/videos
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+  "filename": "meu-video.mp4",
+  "mime_type": "video/mp4",
+  "size_bytes": 1048576
+}
+
+
+### 11. Enviar a parte 1 direto ao storage
+# Copie a URL de upload.parts[0].url da resposta anterior e envie o arquivo:
+#   curl -i -X PUT --upload-file meu-video.mp4 "<url da parte 1>"
+# Guarde o cabeçalho ETag da resposta em @etagPart1.
+
+
+### 12. Listar as partes já recebidas (retomada de upload)
+GET {{baseUrl}}/videos/{{videoId}}/upload/parts
+Authorization: Bearer {{accessToken}}
+
+
+### 13. Reassinar partes (URLs expiradas)
+POST {{baseUrl}}/videos/{{videoId}}/upload/parts
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+  "part_numbers": [1]
+}
+
+
+### 14. Concluir o upload: confere o tamanho e enfileira o processamento
+POST {{baseUrl}}/videos/{{videoId}}/upload/complete
+Authorization: Bearer {{accessToken}}
+Content-Type: {{contentType}}
+
+{
+  "parts": [{ "part_number": 1, "etag": "{{etagPart1}}" }]
+}
+
+
+### 15. Acompanhar o processamento (draft -> processing -> ready | failed)
+GET {{baseUrl}}/videos/{{videoId}}
+Authorization: Bearer {{accessToken}}
+
+
+### 16. Dados públicos do vídeo pronto (sem autenticação)
+GET {{baseUrl}}/videos/public/{{publicId}}
+
+
+### 17. Streaming com Range (responde 206 Partial Content)
+GET {{baseUrl}}/videos/public/{{publicId}}/stream
+Range: bytes=0-1023
+
+
+### 18. Thumbnail gerada pelo worker
+GET {{baseUrl}}/videos/public/{{publicId}}/thumbnail
+
+
+### 19. Download (302 para URL pré-assinada com Content-Disposition: attachment)
+GET {{baseUrl}}/videos/public/{{publicId}}/download
