@@ -63,11 +63,11 @@ $ npm run test:cov
 
 | Serviço | Papel | Porta no host |
 |---------|-------|---------------|
-| `rustfs` | Object storage compatível com S3 (vídeos e thumbnails), imagem `rustfs/rustfs:1.0.5` fixada por digest | `9000` (API S3) e `9001` (console) |
+| `minio` | Object storage compatível com S3 (vídeos e thumbnails), imagem `pgsty/minio:RELEASE.2026-08-04T00-00-00Z` (fork comunitário do MinIO) fixada por digest | `9000` (API S3) e `9001` (console) |
 | `valkey` | Servidor da fila BullMQ (`maxmemory-policy noeviction`) | nenhuma: acesso só pela rede do Compose (`QUEUE_HOST=valkey`) |
 | `video-worker` | Mesmo código da API com entrypoint `src/worker.ts`; consome as filas e roda FFmpeg | nenhuma |
 
-As credenciais do storage (`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`) vêm do `.env` (veja `.env.example`). A API e o worker falam com o storage por `STORAGE_ENDPOINT=http://rustfs:9000`; as URLs pré-assinadas entregues ao cliente usam `STORAGE_PUBLIC_ENDPOINT` (em desenvolvimento, `http://localhost:9000`). Logs do worker: `docker compose logs video-worker`.
+As credenciais do storage (`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`) vêm do `.env` (veja `.env.example`). A API e o worker falam com o storage por `STORAGE_ENDPOINT=http://minio:9000`; as URLs pré-assinadas entregues ao cliente usam `STORAGE_PUBLIC_ENDPOINT` (em desenvolvimento, `http://localhost:9000`). Logs do worker: `docker compose logs video-worker`.
 
 ### Fluxo de upload (o arquivo nunca passa pela API)
 
@@ -81,7 +81,7 @@ Rascunhos não concluídos em `UPLOAD_EXPIRATION_HOURS` (padrão 24 h) são expi
 
 ### Riscos e decisões registrados
 
-- **Servidor S3 trocável por configuração** (`phase-03-videos/TD-01`): o RustFS substitui o MinIO por causa do gate de segurança de imagem; o código usa só a API S3 (`@aws-sdk/client-s3`), então trocar por S3 ou outro servidor compatível é questão de variáveis de ambiente.
+- **Servidor S3 trocável por configuração** (`phase-03-videos/TD-01`): o MinIO roda pelo fork comunitário `pgsty/minio` (a imagem oficial saiu do Docker Hub) e a imagem tem CVEs conhecidos aceitos por ser ambiente local/lab; o código usa só a API S3 (`@aws-sdk/client-s3`), então trocar por S3 ou outro servidor compatível é questão de variáveis de ambiente.
 - **Streaming pela API** (`phase-03-videos/TD-11`): o diagrama de arquitetura prevê o frontend lendo direto do storage; nesta fase o streaming passa pela API (proxy com `Range`), o que consome banda e conexões da API.
 - **Acesso por link a vídeos `ready`** (`phase-03-videos/TD-13`): até a Fase 04 introduzir publicação e visibilidade, qualquer pessoa com o `public_id` acessa um vídeo pronto (equivalente a "não listado"), protegido apenas pela não enumerabilidade do identificador.
 

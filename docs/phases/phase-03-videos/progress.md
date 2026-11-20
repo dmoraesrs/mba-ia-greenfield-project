@@ -157,3 +157,10 @@
 - **Risco aceito (reavaliar até 2027-02-20):** restam 35 vulnerabilidades moderadas, todas em `@nestjs-modules/mailer` (via `mjml`, `glob`, `minimatch`), dependência da Fase 02, e em `typeorm` (via `glob`). A correção exige troca de versão major desses pacotes, fora do escopo desta fase.
 - **Imagens:** `nestjs-api`, `video-worker`, `rustfs` e `valkey` sem CVE HIGH ou CRITICAL com correção (Trivy). `postgres:17.11` e `axllent/mailpit:v1.33.0`, herdadas da Fase 02 e usadas só no ambiente local, têm CVEs HIGH na imagem do fornecedor; ficam como risco aceito até a próxima atualização de digest.
 - **Segredos:** `gitleaks` sem achados nos commits da fase.
+
+### Revisão do TD-01: RustFS substituído pelo MinIO
+- **Status:** completed
+- **Motivo:** decisão do maestro de seguir o enunciado da fase ("na prática você roda MinIO localmente"). A imagem oficial `minio/minio` saiu do Docker Hub, então o serviço usa o fork comunitário `pgsty/minio:RELEASE.2026-08-04T00-00-00Z`, fixado por digest (`sha256:b6bfe723...`).
+- **Mudanças:** serviço `rustfs` virou `minio` no `compose.yaml` (`server /data --console-address ":9001"`, credenciais `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` vindas de `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`, healthcheck em `/minio/health/live`, volume `minio-data`); host padrão `http://minio:9000` em `storage.config.ts`, `.env.example` e testes; README, `CLAUDE.md`, `api.http`, specs, plano, `library-refs.md`, `context.md` e TD-01 atualizados. O código de storage não mudou, porque fala só a API S3.
+- **Tests:** suíte completa contra o MinIO: 304 unitários/integração e 87 e2e passando (inclui upload multipart real, worker, streaming com `206` e download com `response-content-disposition`); `tsc` limpo; lint sem erros.
+- **Risco aceito:** o Trivy aponta 52 HIGH e 3 CRITICAL com correção na imagem `pgsty/minio` (somando os alvos da imagem). Aceito pelo maestro por ser ambiente local/lab; em produção o storage é o AWS S3. As menções ao RustFS nos registros acima são históricas.

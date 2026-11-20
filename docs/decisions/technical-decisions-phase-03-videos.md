@@ -55,11 +55,12 @@ _Subprojects in scope:_
 
 **Recommendation:** **Option A (MinIO via `pgsty/minio` com tag fixa)**: mantém a preferência do maestro e oferece a compatibilidade S3 mais completa para os três fluxos críticos da fase (multipart pré-assinado, Range e `response-content-disposition`); o risco de manutenção do fork é contido porque o código depende só da API S3 (trocar para SeaweedFS ou AWS S3 é mudança de Compose e de variáveis, não de código), e esse risco deve ficar registrado no plano.
 
-**Decision:** C
+**Decision:** A (revisada; ver Revisions)
 **Libraries:** @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
 
 **Revisions:**
 - 2026-11-20 — Maestro escolheu a Option C (RustFS) no lugar da recomendação A: imagem `rustfs/rustfs:1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74` (fixada por digest, publicada em 2026-11-10, cumpre o cooldown de 7 dias), portas 9000 (S3) e 9001 (console), credenciais via `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` ou as variáveis indicadas no README da imagem (confirmar na implementação); o código fala só a API S3 com `@aws-sdk/client-s3` e `@aws-sdk/s3-request-presigner`, então trocar por S3 em produção não muda código. Rationale: scan Trivy de 2026-11-20 (`--severity HIGH,CRITICAL --ignore-unfixed`) reprovou `pgsty/minio:RELEASE.2026-08-04T00-00-00Z` (52 HIGH e 3 CRITICAL com correção disponível) e aprovou `rustfs/rustfs:1.0.5` (nenhum HIGH/CRITICAL com correção); a imagem oficial `minio/minio` não existe mais no Docker Hub; se algum recurso S3 (ex.: `response-content-disposition`) falhar no RustFS, registrar no `progress.md` e usar a alternativa equivalente do TD-12 (decisão do maestro).
+- 2026-11-20 (revisão após a implementação): maestro voltou para a Option A, como pede o enunciado da fase ("na prática você roda MinIO localmente"): imagem `pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372`, serviço `minio` no Compose, credenciais via `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` (alimentadas por `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`), healthcheck em `/minio/health/live`. Os CVEs da imagem apontados pelo Trivy ficam como **risco aceito**: o serviço só roda no ambiente local de desenvolvimento e laboratório, e em produção o storage é o AWS S3. Nenhuma linha de código mudou além do host padrão (`http://minio:9000`), porque o código fala só a API S3; a suíte completa (unit, integração e e2e, inclusive `response-content-disposition` do TD-12) passou contra o MinIO.
 
 ---
 

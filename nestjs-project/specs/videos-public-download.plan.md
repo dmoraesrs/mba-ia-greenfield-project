@@ -10,7 +10,7 @@ target_file: test/videos-public-download.e2e-spec.ts
 
 ## Application Overview
 
-`GET /videos/public/:publicId/download` permite baixar o vídeo sem que os bytes passem pela API: responde `302` com `Location` para uma URL pré-assinada (`GetObjectCommand` no endpoint público, `expiresIn = 300`) com `ResponseContentDisposition: attachment; filename="..."`. É anônimo e só atende vídeos `ready`. Plano B (revisão do TD-12): se o RustFS não honrar `response-content-disposition`, o mesmo caminho responde `200` em stream com `Content-Disposition: attachment`.
+`GET /videos/public/:publicId/download` permite baixar o vídeo sem que os bytes passem pela API: responde `302` com `Location` para uma URL pré-assinada (`GetObjectCommand` no endpoint público, `expiresIn = 300`) com `ResponseContentDisposition: attachment; filename="..."`. É anônimo e só atende vídeos `ready`. Plano B (revisão do TD-12): se o MinIO não honrar `response-content-disposition`, o mesmo caminho responde `200` em stream com `Content-Disposition: attachment`.
 
 ## Test Scenarios
 
@@ -39,7 +39,7 @@ target_file: test/videos-public-download.e2e-spec.ts
 **Steps:**
   1. GET /videos/public/{public_id}/download sem seguir redirects e capturar `Location`
     - expect: status `302`
-  2. `fetch(Location)` direto ao RustFS, lendo o corpo como buffer
+  2. `fetch(Location)` direto ao MinIO, lendo o corpo como buffer
     - expect: status `200`
     - expect: `Content-Disposition` começa com `attachment` e contém `filename="meu-video.mp4"`
     - expect: o corpo é byte a byte idêntico ao arquivo gerado

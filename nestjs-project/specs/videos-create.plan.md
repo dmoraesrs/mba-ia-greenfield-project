@@ -10,7 +10,7 @@ target_file: test/videos-create.e2e-spec.ts
 
 ## Application Overview
 
-`POST /videos` inicia o upload de um vídeo de até 10GB sem que o arquivo passe pela API: cria o vídeo como rascunho (`draft`) no canal do usuário autenticado, abre um multipart upload no RustFS para `videos/{id}/original` e devolve as URLs pré-assinadas de todas as partes (`part_count = ceil(size_bytes / part_size_bytes)`, parte de 64 MiB). Formato (MIME declarado) e tamanho declarado são validados na entrada, e o endpoint exige autenticação.
+`POST /videos` inicia o upload de um vídeo de até 10GB sem que o arquivo passe pela API: cria o vídeo como rascunho (`draft`) no canal do usuário autenticado, abre um multipart upload no MinIO para `videos/{id}/original` e devolve as URLs pré-assinadas de todas as partes (`part_count = ceil(size_bytes / part_size_bytes)`, parte de 64 MiB). Formato (MIME declarado) e tamanho declarado são validados na entrada, e o endpoint exige autenticação.
 
 ## Test Scenarios
 

@@ -10,7 +10,7 @@ target_file: test/videos-public-stream.e2e-spec.ts
 
 ## Application Overview
 
-`GET /videos/public/:publicId/stream` entrega a reprodução sem download completo: a API repassa o cabeçalho `Range` do cliente ao `GetObject` do RustFS e responde `206 Partial Content` com `Content-Range`, ou `200` com o arquivo inteiro em stream quando não há `Range`; intervalo fora do tamanho responde `416` com `Content-Range: bytes */{size}`. `GET /videos/public/:publicId/thumbnail` serve a thumbnail JPEG gerada pelo worker. Ambos são anônimos e só atendem vídeos `ready`.
+`GET /videos/public/:publicId/stream` entrega a reprodução sem download completo: a API repassa o cabeçalho `Range` do cliente ao `GetObject` do MinIO e responde `206 Partial Content` com `Content-Range`, ou `200` com o arquivo inteiro em stream quando não há `Range`; intervalo fora do tamanho responde `416` com `Content-Range: bytes */{size}`. `GET /videos/public/:publicId/thumbnail` serve a thumbnail JPEG gerada pelo worker. Ambos são anônimos e só atendem vídeos `ready`.
 
 ## Test Scenarios
 

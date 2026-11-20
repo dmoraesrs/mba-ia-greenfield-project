@@ -47,17 +47,17 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 ---
 
-### SI-03.2 — Infra: serviços Valkey, RustFS e video-worker no Compose com FFmpeg
+### SI-03.2 — Infra: serviços Valkey, MinIO e video-worker no Compose com FFmpeg
 
 **Description:** Sobe a infraestrutura nova da fase (fila, object storage e container do worker) com imagens fixadas por tag e digest e aprovadas no gate de segurança, e coloca o FFmpeg na imagem usada pela API e pelos testes.
 
 **Technical actions:**
 
-1. Escolher a imagem do Valkey (`valkey/valkey:{versão}-alpine@sha256:...`, publicada há pelo menos 7 dias) e a imagem base com FFmpeg do worker (base `node:25.6.0-slim` atual + `ffmpeg` via `apt`, per `phase-03-videos/TD-07`); rodar `trivy image --severity HIGH,CRITICAL --ignore-unfixed` em cada uma e em `rustfs/rustfs:1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74`, registrando resultado e digest no `progress.md` (per revisões de `phase-03-videos/TD-01`, `phase-03-videos/TD-03`, `phase-03-videos/TD-07`).
+1. Escolher a imagem do Valkey (`valkey/valkey:{versão}-alpine@sha256:...`, publicada há pelo menos 7 dias) e a imagem base com FFmpeg do worker (base `node:25.6.0-slim` atual + `ffmpeg` via `apt`, per `phase-03-videos/TD-07`); rodar `trivy image --severity HIGH,CRITICAL --ignore-unfixed` em cada uma e em `pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372`, registrando resultado e digest no `progress.md` (per revisões de `phase-03-videos/TD-01`, `phase-03-videos/TD-03`, `phase-03-videos/TD-07`).
 2. Atualizar `nestjs-project/Dockerfile.dev` para instalar `ffmpeg` (com `--no-install-recommends`), de modo que `nestjs-api` (testes) e `video-worker` usem a mesma imagem (per `phase-03-videos/TD-07`, `phase-03-videos/TD-14`).
-3. Em `nestjs-project/compose.yaml`: adicionar `valkey` (sem porta no host, `command: valkey-server --maxmemory-policy noeviction`, healthcheck `valkey-cli ping`), `rustfs` (portas `9000:9000` e `9001:9001`, livres no host conforme `lsof` em 2026-11-20, volume nomeado `rustfs-data`, credenciais pelas variáveis do README da imagem, healthcheck) e `video-worker` (mesmo `build` e volume do `nestjs-api`, `command: npm run start:worker:dev`, `depends_on` com `condition: service_healthy` para `db`, `valkey`, `rustfs`); `nestjs-api` passa a depender de `valkey` e `rustfs` (per `phase-03-videos/TD-01`, `phase-03-videos/TD-03`, `phase-03-videos/TD-07`).
+3. Em `nestjs-project/compose.yaml`: adicionar `valkey` (sem porta no host, `command: valkey-server --maxmemory-policy noeviction`, healthcheck `valkey-cli ping`), `minio` (portas `9000:9000` e `9001:9001`, livres no host conforme `lsof` em 2026-11-20, volume nomeado `rustfs-data`, credenciais pelas variáveis do README da imagem, healthcheck) e `video-worker` (mesmo `build` e volume do `nestjs-api`, `command: npm run start:worker:dev`, `depends_on` com `condition: service_healthy` para `db`, `valkey`, `minio`); `nestjs-api` passa a depender de `valkey` e `minio` (per `phase-03-videos/TD-01`, `phase-03-videos/TD-03`, `phase-03-videos/TD-07`).
 4. Instalar dependências com versões exatas de `library-refs.md`: `docker compose exec nestjs-api npm install --save-exact --ignore-scripts @aws-sdk/client-s3@3.1168.0 @aws-sdk/s3-request-presigner@3.1168.0 @nestjs/bullmq@12.0.1 bullmq@6.7.6`.
-5. Acrescentar ao `.env.example` (sem segredos reais) e ao `.env` local: `STORAGE_ENDPOINT=http://rustfs:9000`, `STORAGE_PUBLIC_ENDPOINT=http://localhost:9000`, `STORAGE_REGION=us-east-1`, `STORAGE_BUCKET=streamtube`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `QUEUE_HOST=valkey`, `QUEUE_PORT=6379`, `QUEUE_PREFIX=streamtube`, `VIDEO_WORKER_CONCURRENCY=2`, `UPLOAD_PART_URL_EXPIRATION_SECONDS=3600`, `DOWNLOAD_URL_EXPIRATION_SECONDS=300`, `UPLOAD_EXPIRATION_HOURS=24`, `UPLOAD_EXPIRATION_SWEEP_INTERVAL_MS=3600000` (per `phase-03-videos/TD-02`, `phase-03-videos/TD-06`).
+5. Acrescentar ao `.env.example` (sem segredos reais) e ao `.env` local: `STORAGE_ENDPOINT=http://minio:9000`, `STORAGE_PUBLIC_ENDPOINT=http://localhost:9000`, `STORAGE_REGION=us-east-1`, `STORAGE_BUCKET=streamtube`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `QUEUE_HOST=valkey`, `QUEUE_PORT=6379`, `QUEUE_PREFIX=streamtube`, `VIDEO_WORKER_CONCURRENCY=2`, `UPLOAD_PART_URL_EXPIRATION_SECONDS=3600`, `DOWNLOAD_URL_EXPIRATION_SECONDS=300`, `UPLOAD_EXPIRATION_HOURS=24`, `UPLOAD_EXPIRATION_SWEEP_INTERVAL_MS=3600000` (per `phase-03-videos/TD-02`, `phase-03-videos/TD-06`).
 
 **Tests:** _(empty — Infra)_
 
@@ -65,10 +65,10 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 **Acceptance criteria:**
 
-- `docker compose ps` mostra `db`, `valkey`, `rustfs`, `nestjs-api` e `video-worker` em execução e `healthy` onde há healthcheck (o `video-worker` pode reiniciar até o SI-03.9 criar o entrypoint).
+- `docker compose ps` mostra `db`, `valkey`, `minio`, `nestjs-api` e `video-worker` em execução e `healthy` onde há healthcheck (o `video-worker` pode reiniciar até o SI-03.9 criar o entrypoint).
 - `docker compose exec valkey valkey-cli CONFIG GET maxmemory-policy` retorna `noeviction`.
 - `docker compose exec nestjs-api ffprobe -version` e `ffmpeg -version` retornam versão.
-- `compose.yaml` não contém nenhuma imagem sem tag fixa; Valkey e RustFS estão fixados por digest e o resultado do Trivy (zero HIGH/CRITICAL com correção) está registrado no `progress.md`.
+- `compose.yaml` não contém nenhuma imagem sem tag fixa; Valkey e MinIO estão fixados por digest e o resultado do Trivy está registrado no `progress.md` (zero HIGH/CRITICAL com correção nas imagens do Valkey e do worker; os CVEs da imagem `pgsty/minio` são risco aceito do ambiente local/lab, per revisão de `phase-03-videos/TD-01`).
 - `package.json` lista os quatro pacotes com versão exata, sem `^`.
 
 ---
@@ -101,7 +101,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 ---
 
-### SI-03.4 — Módulo de storage S3 (RustFS) com multipart, assinatura e leitura por Range
+### SI-03.4 — Módulo de storage S3 (MinIO) com multipart, assinatura e leitura por Range
 
 **Description:** Entrega o serviço de armazenamento de arquivos como adapter S3 isolado, com dois clientes (interno e público) e todas as operações que upload, worker, streaming e download consomem.
 
@@ -116,7 +116,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
-| `StorageService` | Integration (RustFS real, bucket de teste): multipart real com 2 partes (`PUT` nas URLs assinadas via `fetch`) + `CompleteMultipartUpload` + `HeadObject`; `getObjectStream` com `Range: bytes=0-9` devolve 10 bytes e `ContentRange`; `abortMultipartUpload`; `deleteObject`; URL de `signGetObject` com `responseContentDisposition` responde `Content-Disposition: attachment` | `src/storage/storage.service.integration-spec.ts` |
+| `StorageService` | Integration (MinIO real, bucket de teste): multipart real com 2 partes (`PUT` nas URLs assinadas via `fetch`) + `CompleteMultipartUpload` + `HeadObject`; `getObjectStream` com `Range: bytes=0-9` devolve 10 bytes e `ContentRange`; `abortMultipartUpload`; `deleteObject`; URL de `signGetObject` com `responseContentDisposition` responde `Content-Disposition: attachment` | `src/storage/storage.service.integration-spec.ts` |
 | `storage.errors` | Unit: mapeamento de cada erro do SDK para o erro de domínio | `src/storage/storage.errors.spec.ts` |
 | `StorageModule` | Unit: compilação com config de teste | `src/storage/storage.module.spec.ts` |
 
@@ -124,9 +124,9 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 **Acceptance criteria:**
 
-- Um upload multipart de 2 partes enviado direto ao RustFS pelas URLs assinadas resulta num objeto cujo `HeadObject.ContentLength` é a soma das partes.
+- Um upload multipart de 2 partes enviado direto ao MinIO pelas URLs assinadas resulta num objeto cujo `HeadObject.ContentLength` é a soma das partes.
 - `GetObject` com `Range: bytes=0-9` sobre esse objeto devolve exatamente 10 bytes e `ContentRange` `bytes 0-9/{total}`.
-- Uma URL de download assinada com `ResponseContentDisposition: attachment; filename="a.mp4"` devolve o cabeçalho `Content-Disposition` correspondente; se o RustFS não honrar, o desvio fica registrado no `progress.md` e o SI-03.15 aplica o plano B (per revisão de `phase-03-videos/TD-12`).
+- Uma URL de download assinada com `ResponseContentDisposition: attachment; filename="a.mp4"` devolve o cabeçalho `Content-Disposition` correspondente; se o MinIO não honrar, o desvio fica registrado no `progress.md` e o SI-03.15 aplica o plano B (per revisão de `phase-03-videos/TD-12`).
 - `HeadObject` de chave inexistente lança `StorageObjectNotFoundError`; `ListParts` de `UploadId` abortado lança `StorageUploadNotFoundError`.
 - A API inicializada com bucket inexistente cria o bucket no boot.
 
@@ -213,7 +213,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `VideosService.initiateUpload` | Unit: cálculo de `part_count` (1 byte → 1 parte; 10737418240 → 160 partes), abort do multipart quando o insert falha (repo e storage mockados) | `src/videos/videos.service.spec.ts` |
-| `VideosService.initiateUpload` | Integration (Postgres + RustFS reais): rascunho persistido com `upload_id` e multipart existente no storage (`ListParts` vazio) | `src/videos/videos.service.integration-spec.ts` |
+| `VideosService.initiateUpload` | Integration (Postgres + MinIO reais): rascunho persistido com `upload_id` e multipart existente no storage (`ListParts` vazio) | `src/videos/videos.service.integration-spec.ts` |
 | `VideosModule` | Unit: compilação com configs de teste | `src/videos/videos.module.spec.ts` |
 
 **Dependencies:** SI-03.4 (storage), SI-03.5 (fila registrada no módulo), SI-03.6 (entidade e repositório)
@@ -247,7 +247,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `VideosService.signParts` / `listUploadedParts` | Unit: `VIDEO_NOT_FOUND` para vídeo de outro usuário, `VIDEO_NOT_IN_DRAFT` fora de `draft`, `INVALID_PART_NUMBER` acima de `part_count`, tradução de `StorageUploadNotFoundError` | `src/videos/videos.service.spec.ts` |
-| `VideosService.listUploadedParts` | Integration (RustFS real): após enviar a parte 1 pela URL assinada, a listagem devolve `part_number = 1` com `etag` e `size_bytes` | `src/videos/videos.service.integration-spec.ts` |
+| `VideosService.listUploadedParts` | Integration (MinIO real): após enviar a parte 1 pela URL assinada, a listagem devolve `part_number = 1` com `etag` e `size_bytes` | `src/videos/videos.service.integration-spec.ts` |
 
 **Dependencies:** SI-03.7 (vídeo `draft` com multipart aberto, controller e módulo)
 
@@ -281,7 +281,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `VideosService.completeUpload` | Unit: ordenação de partes, `INVALID_UPLOAD_PARTS` mantém `draft`, `UPLOAD_TOO_LARGE` e `UPLOAD_SIZE_MISMATCH` gravam `failed` com motivo e apagam o objeto sem enfileirar, `VIDEO_NOT_IN_DRAFT` quando o update condicional não afeta linha | `src/videos/videos.service.spec.ts` |
-| `VideosService.completeUpload` | Integration (Postgres + RustFS + Valkey reais): upload real de 2 partes, conclusão grava `processing` e cria o job `process-video` com `jobId = videoId`; upload com tamanho real diferente do declarado vira `failed` com `upload_size_mismatch` e o objeto deixa de existir | `src/videos/videos.service.integration-spec.ts` |
+| `VideosService.completeUpload` | Integration (Postgres + MinIO + Valkey reais): upload real de 2 partes, conclusão grava `processing` e cria o job `process-video` com `jobId = videoId`; upload com tamanho real diferente do declarado vira `failed` com `upload_size_mismatch` e o objeto deixa de existir | `src/videos/videos.service.integration-spec.ts` |
 
 **Dependencies:** SI-03.8 (exceções de vídeo e fluxo de partes), SI-03.5 (produtor da fila)
 
@@ -312,7 +312,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `parseProbeOutput` | Unit: JSON com áudio, sem áudio, `avg_frame_rate = 0/0`, sem stream de vídeo (erro), sem duração (erro), JSON malformado (erro) | `src/media/probe-parser.spec.ts` |
-| `FfmpegService` | Integration (binários reais, vídeo gerado pelo fixture e servido por URL assinada do RustFS): `probe` devolve duração cerca de 2 s, 320x240, `h264`; `extractFrame` devolve JPEG (começa com `FF D8`); arquivo de texto com extensão `.mp4` lança `InvalidVideoFileError` | `src/media/ffmpeg.service.integration-spec.ts` |
+| `FfmpegService` | Integration (binários reais, vídeo gerado pelo fixture e servido por URL assinada do MinIO): `probe` devolve duração cerca de 2 s, 320x240, `h264`; `extractFrame` devolve JPEG (começa com `FF D8`); arquivo de texto com extensão `.mp4` lança `InvalidVideoFileError` | `src/media/ffmpeg.service.integration-spec.ts` |
 
 **Dependencies:** SI-03.2 (FFmpeg na imagem), SI-03.4 (URL assinada para entrada remota), SI-03.6 (tipo `VideoMetadata`)
 
@@ -335,14 +335,14 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 2. Criar `src/videos/processing/video-processing.processor.ts`: `@Processor(VIDEO_PROCESSING_QUEUE, { concurrency })` estendendo `WorkerHost`: carrega o vídeo por `findById`; se não estiver `processing`, retorna sem efeito; gera `signGetObject(storage_key, { internal: true, expiresIn: 3600 })`, chama `probe` e `parseProbeOutput`, `extractFrame` em `min(1, duração/2)`, `putObject(thumbnailKey(id), jpeg, 'image/jpeg')` e `updateWhereStatus(id, 'processing', { status: 'ready', duration_seconds, metadata, thumbnail_key, failure_reason: null })` (per `phase-03-videos/TD-07`, `phase-03-videos/TD-08`, `### Events/Messages → video-processing`).
 3. No processor, converter `InvalidVideoFileError` em `UnrecoverableError` com a mensagem `invalid_video_file: {detalhe}`; demais erros são relançados para retentativa com backoff (per revisão MD-1 de `phase-03-videos/TD-09`).
 4. Implementar `@OnWorkerEvent('failed')`: quando o erro é `UnrecoverableError` ou `job.attemptsMade >= job.opts.attempts`, `updateWhereStatus(id, 'processing', { status: 'failed', failure_reason })` com `invalid_video_file: ...` ou `processing_failed: {mensagem}` (per `phase-03-videos/TD-09`).
-5. Garantir que o processor não é registrado no `AppModule` (a API só produz) e documentar em `nestjs-project/CLAUDE.md` o serviço `video-worker`, seus logs (`docker compose logs video-worker`) e as verificações de prontidão de `valkey` e `rustfs`.
+5. Garantir que o processor não é registrado no `AppModule` (a API só produz) e documentar em `nestjs-project/CLAUDE.md` o serviço `video-worker`, seus logs (`docker compose logs video-worker`) e as verificações de prontidão de `valkey` e `minio`.
 
 **Tests:**
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `VideoProcessingProcessor` | Unit: vídeo fora de `processing` é ignorado; `InvalidVideoFileError` vira `UnrecoverableError`; handler `failed` só grava `failed` na última tentativa ou em erro não retentável (serviços mockados) | `src/videos/processing/video-processing.processor.spec.ts` |
-| `VideoProcessingProcessor` | Integration (Postgres + RustFS + Valkey + FFmpeg reais, worker in-process com prefixo de teste): vídeo gerado pelo fixture e enviado ao storage fica `ready` com duração, metadados e `thumbnail.jpg` no bucket; arquivo de texto fica `failed` com `invalid_video_file:` após uma única tentativa | `src/videos/processing/video-processing.processor.integration-spec.ts` |
+| `VideoProcessingProcessor` | Integration (Postgres + MinIO + Valkey + FFmpeg reais, worker in-process com prefixo de teste): vídeo gerado pelo fixture e enviado ao storage fica `ready` com duração, metadados e `thumbnail.jpg` no bucket; arquivo de texto fica `failed` com `invalid_video_file:` após uma única tentativa | `src/videos/processing/video-processing.processor.integration-spec.ts` |
 | `WorkerModule` | Unit: compilação com configs de teste | `src/worker.module.spec.ts` |
 
 **Dependencies:** SI-03.9 (job enfileirado na conclusão), SI-03.10 (serviço FFmpeg)
@@ -371,7 +371,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
-| `UploadExpirationService` | Integration (Postgres + RustFS reais): rascunho com `created_at` anterior ao corte vira `failed`/`upload_expired` e o multipart deixa de existir; rascunho recente e vídeo `processing` antigo não são tocados; `NoSuchUpload` não interrompe o lote | `src/videos/processing/upload-expiration.service.integration-spec.ts` |
+| `UploadExpirationService` | Integration (Postgres + MinIO reais): rascunho com `created_at` anterior ao corte vira `failed`/`upload_expired` e o multipart deixa de existir; rascunho recente e vídeo `processing` antigo não são tocados; `NoSuchUpload` não interrompe o lote | `src/videos/processing/upload-expiration.service.integration-spec.ts` |
 | `UploadExpirationScheduler` | Integration (Valkey real, prefixo de teste): duas inicializações resultam em um único job scheduler `expire-abandoned-uploads` | `src/videos/processing/upload-expiration.scheduler.integration-spec.ts` |
 
 **Dependencies:** SI-03.11 (`WorkerModule` e fila `video-maintenance` registrada)
@@ -436,7 +436,7 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `parseRange` | Unit: `bytes=0-9`, `bytes=100-` , `bytes=-500`, fim além do tamanho (limitado), início além do tamanho (416), múltiplos intervalos e cabeçalho malformado (null) | `src/videos/range.spec.ts` |
-| `VideoStreamingService` | Integration (Postgres + RustFS reais): vídeo `ready` com objeto real devolve `206` e o trecho exato pedido; sem `Range` devolve `200` com o arquivo inteiro | `src/videos/video-streaming.service.integration-spec.ts` |
+| `VideoStreamingService` | Integration (Postgres + MinIO reais): vídeo `ready` com objeto real devolve `206` e o trecho exato pedido; sem `Range` devolve `200` com o arquivo inteiro | `src/videos/video-streaming.service.integration-spec.ts` |
 | `DomainExceptionFilter` | Unit: `RANGE_NOT_SATISFIABLE` inclui `Content-Range: bytes */{size}` | `src/common/filters/domain-exception.filter.spec.ts` |
 
 **Dependencies:** SI-03.13 (`getPublic`), SI-03.4 (`getObjectStream`)
@@ -464,14 +464,14 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 1. Criar `src/videos/content-disposition.ts`: `attachmentDisposition(filename)` que gera `attachment; filename="{ascii}"; filename*=UTF-8''{encoded}`, removendo aspas, barras e caracteres de controle do `original_filename` (per `phase-03-videos/TD-12`).
 2. Implementar `VideosService.getDownloadUrl(publicId)`: `getPublic` + `signGetObject(storage_key, { internal: false, expiresIn: downloadUrlExpirationSeconds, responseContentDisposition })` (per `phase-03-videos/TD-12`, `phase-03-videos/TD-13`).
 3. Adicionar ao `VideosController` `GET /videos/public/:publicId/download` com `@Public()`, respondendo `302` com `Location` (`@Redirect` dinâmico ou `res.redirect(302, url)`) e swagger explícito.
-4. Se o SI-03.4 tiver registrado que o RustFS não honra `response-content-disposition`, aplicar o plano B no mesmo endpoint: responder `200` em stream via `getObjectStream` com `Content-Disposition` de `attachmentDisposition`, `Content-Type` e `Content-Length`, e registrar a decisão no `progress.md` (per revisão de `phase-03-videos/TD-12`, revisão de `phase-03-videos/TD-01`).
+4. Se o SI-03.4 tiver registrado que o MinIO não honra `response-content-disposition`, aplicar o plano B no mesmo endpoint: responder `200` em stream via `getObjectStream` com `Content-Disposition` de `attachmentDisposition`, `Content-Type` e `Content-Length`, e registrar a decisão no `progress.md` (per revisão de `phase-03-videos/TD-12`, revisão de `phase-03-videos/TD-01`).
 
 **Tests:**
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
 | `attachmentDisposition` | Unit: nome ASCII simples, nome com acentos (`filename*`), nome com aspas e barras sanitizado | `src/videos/content-disposition.spec.ts` |
-| `VideosService.getDownloadUrl` | Integration (Postgres + RustFS reais): a URL devolvida, acessada com `fetch`, responde `200` com `Content-Disposition: attachment` e o corpo do vídeo | `src/videos/videos.service.integration-spec.ts` |
+| `VideosService.getDownloadUrl` | Integration (Postgres + MinIO reais): a URL devolvida, acessada com `fetch`, responde `200` com `Content-Disposition: attachment` e o corpo do vídeo | `src/videos/videos.service.integration-spec.ts` |
 
 **Dependencies:** SI-03.13 (`getPublic`), SI-03.4 (`signGetObject` e verificação de `response-content-disposition`)
 
@@ -486,27 +486,27 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 ### SI-03.16 — Fluxo completo upload, processamento e streaming com a infra real, e documentação da fase
 
-**Description:** Prova de ponta a ponta os entregáveis da fase com a infraestrutura do Compose (upload multipart real no RustFS, processamento pelo worker in-process com vídeo gerado por ffmpeg, streaming `206` e download) e atualiza OpenAPI e documentação.
+**Description:** Prova de ponta a ponta os entregáveis da fase com a infraestrutura do Compose (upload multipart real no MinIO, processamento pelo worker in-process com vídeo gerado por ffmpeg, streaming `206` e download) e atualiza OpenAPI e documentação.
 
 **Technical actions:**
 
 1. Criar `test/videos-flow.e2e-spec.ts`: sobe o `AppModule` e o `WorkerModule` in-process com `testStorageConfig()`/`testQueueConfig()`; registra e confirma um usuário (padrão de `test/auth.e2e-spec.ts` com Mailpit), gera um vídeo de 2 s com `generateSampleVideo` e `videoBitrate: '24M'` (cerca de 6 MiB), chama `POST /videos` com `part_size_bytes` reduzido via override do `videoConfig` para 5 MiB (mínimo S3), o que resulta em 2 partes, envia as partes com `fetch` para as URLs assinadas, conclui, aguarda (polling de `GET /videos/:id` com timeout) `ready`, e verifica `stream` com `Range` (`206`), `thumbnail` e `download` (per `phase-03-videos/TD-14`).
 2. No mesmo arquivo, cenário de arquivo inválido: upload de um arquivo de texto declarado como `video/mp4` termina `failed` com `invalid_video_file:` via `GET /videos/:id`; `afterAll` esvazia o bucket de teste, oblitera as filas de teste e fecha `Queue`/`Worker`.
 3. Regenerar `nestjs-project/openapi.json` com `npm run openapi:export` e conferir que os 9 endpoints da fase aparecem com respostas por status e envelope de erro (per `openapi-docs-nestjs/TD-01`, `openapi-docs-nestjs/TD-02`).
-4. Atualizar `nestjs-project/README.md` e `nestjs-project/api.http` com o fluxo de upload (iniciar, enviar partes, concluir, acompanhar), as portas `9000`/`9001` do RustFS, a ausência de porta do Valkey no host e os registros de risco da fase: fork/servidor S3 trocável por configuração (`phase-03-videos/TD-01`), streaming pela API em vez de URL direta do diagrama (`phase-03-videos/TD-11`), acesso por link a vídeos `ready` até a Fase 04 (`phase-03-videos/TD-13`).
+4. Atualizar `nestjs-project/README.md` e `nestjs-project/api.http` com o fluxo de upload (iniciar, enviar partes, concluir, acompanhar), as portas `9000`/`9001` do MinIO, a ausência de porta do Valkey no host e os registros de risco da fase: fork/servidor S3 trocável por configuração (`phase-03-videos/TD-01`), streaming pela API em vez de URL direta do diagrama (`phase-03-videos/TD-11`), acesso por link a vídeos `ready` até a Fase 04 (`phase-03-videos/TD-13`).
 
 **Tests:**
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
-| Fluxo upload → worker → streaming/download | E2E (Postgres, Valkey, RustFS, Mailpit e FFmpeg reais; worker in-process): vídeo válido chega a `ready` e é reproduzido com `206`; arquivo inválido chega a `failed` | `test/videos-flow.e2e-spec.ts` |
+| Fluxo upload → worker → streaming/download | E2E (Postgres, Valkey, MinIO, Mailpit e FFmpeg reais; worker in-process): vídeo válido chega a `ready` e é reproduzido com `206`; arquivo inválido chega a `failed` | `test/videos-flow.e2e-spec.ts` |
 | `openapi.json` | Integration: suíte existente de export confirma o documento gerado | `src/openapi-export.integration-spec.ts` |
 
 **Dependencies:** SI-03.11, SI-03.12, SI-03.14, SI-03.15 (todos os fluxos implementados)
 
 **Acceptance criteria:**
 
-- Um vídeo de cerca de 6 MiB enviado em 2 partes direto ao RustFS, concluído via API, chega a `ready` em até 60 s com `duration_seconds` próximo de 2 e `metadata.width = 320`.
+- Um vídeo de cerca de 6 MiB enviado em 2 partes direto ao MinIO, concluído via API, chega a `ready` em até 60 s com `duration_seconds` próximo de 2 e `metadata.width = 320`.
 - Para esse vídeo, `GET /videos/public/{public_id}/stream` com `Range: bytes=0-99` retorna `206` com 100 bytes idênticos aos 100 primeiros bytes do arquivo enviado.
 - Para esse vídeo, `GET /videos/public/{public_id}/download` leva (seguindo o redirect, ou diretamente no plano B) ao arquivo com `Content-Disposition: attachment`.
 - Um arquivo de texto enviado como `video/mp4` chega a `failed` com `failure_reason` iniciado por `invalid_video_file:`.
@@ -572,15 +572,15 @@ Entregar no backend (`nestjs-project/`) o serviço de armazenamento de arquivos 
 
 #### Storage (bucket e chaves)
 
-Não é tabela; contrato de organização do object storage (per `phase-03-videos/TD-01` revisão RustFS, `phase-03-videos/TD-02`, `phase-03-videos/TD-14`):
+Não é tabela; contrato de organização do object storage (per `phase-03-videos/TD-01` revisão MinIO, `phase-03-videos/TD-02`, `phase-03-videos/TD-14`):
 
 | Item | Valor |
 |------|-------|
-| Servidor (dev/teste) | RustFS `rustfs/rustfs:1.0.5@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74`, serviço Compose `rustfs`, portas 9000 (S3) e 9001 (console) |
+| Servidor (dev/teste) | MinIO `pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372`, serviço Compose `minio`, portas 9000 (S3) e 9001 (console) |
 | Bucket | único e privado, `STORAGE_BUCKET` (dev: `streamtube`); testes usam `${STORAGE_BUCKET}-test` |
 | Original | `videos/{videoId}/original` |
 | Thumbnail | `videos/{videoId}/thumbnail.jpg` (`image/jpeg`) |
-| Endpoint interno | `STORAGE_ENDPOINT=http://rustfs:9000` (API e worker; chamadas S3 e URL pré-assinada lida pelo `ffprobe`/`ffmpeg`, per `phase-03-videos/TD-08`) |
+| Endpoint interno | `STORAGE_ENDPOINT=http://minio:9000` (API e worker; chamadas S3 e URL pré-assinada lida pelo `ffprobe`/`ffmpeg`, per `phase-03-videos/TD-08`) |
 | Endpoint público | `STORAGE_PUBLIC_ENDPOINT=http://localhost:9000` (só para assinar URLs entregues ao cliente: partes do upload e download; o `Host` faz parte da assinatura). Nos testes é sobrescrito pelo endpoint interno, porque o "cliente" do teste roda dentro do container |
 | Endereçamento | `forcePathStyle: true`, região `STORAGE_REGION` (default `us-east-1`) |
 
@@ -771,7 +771,7 @@ Download por redirect para URL pré-assinada com `attachment` (per `phase-03-vid
 **Error responses:**
 - 404 VIDEO_NOT_FOUND: como em `GET /videos/public/:publicId`
 
-**Plano B (revisão de `phase-03-videos/TD-12`):** se o RustFS não honrar `response-content-disposition`, o mesmo endpoint passa a responder `200` em stream com `Content-Disposition: attachment; filename="..."`, sem mudar o caminho; o desvio é registrado no `progress.md`.
+**Plano B (revisão de `phase-03-videos/TD-12`):** se o MinIO não honrar `response-content-disposition`, o mesmo endpoint passa a responder `200` em stream com `Content-Disposition: attachment; filename="..."`, sem mudar o caminho; o desvio é registrado no `progress.md`.
 
 #### Validation Rules: Upload de vídeo
 
@@ -861,7 +861,7 @@ Servidor da fila: Valkey com tag fixa (preferencialmente por digest, publicada h
 SI-03.1 (root, lint zerado)
 └── SI-03.2: infraestrutura do Compose, FFmpeg e dependências
     ├── SI-03.3: namespaces de configuração
-    │   ├── SI-03.4: storage S3 (RustFS)
+    │   ├── SI-03.4: storage S3 (MinIO)
     │   └── SI-03.5: fila BullMQ e produtor
     └── SI-03.6: entidade Video, migration e repositório
 
@@ -891,9 +891,9 @@ Ordem linear de implementação: SI-03.1 → SI-03.2 → SI-03.3 → SI-03.4, SI
 ## Deliverables
 
 - [ ] SI-03.1 — Corrigir erros de lint pré-existentes nos testes
-- [ ] SI-03.2 — Infra: serviços Valkey, RustFS e video-worker no Compose com FFmpeg
+- [ ] SI-03.2 — Infra: serviços Valkey, MinIO e video-worker no Compose com FFmpeg
 - [ ] SI-03.3 — Namespaces de configuração de storage, fila e vídeos
-- [ ] SI-03.4 — Módulo de storage S3 (RustFS) com multipart, assinatura e leitura por Range
+- [ ] SI-03.4 — Módulo de storage S3 (MinIO) com multipart, assinatura e leitura por Range
 - [ ] SI-03.5 — Módulo de fila BullMQ e produtor do processamento
 - [ ] SI-03.6 — Entidade Video, migration e repositório com identificador público único
 - [ ] SI-03.7 — Endpoint POST /videos (início do upload e pré-cadastro como rascunho)
