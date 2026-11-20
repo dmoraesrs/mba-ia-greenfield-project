@@ -53,7 +53,7 @@ async function createModule(
   return module;
 }
 
-describe('StorageService (integration, RustFS)', () => {
+describe('StorageService (integration, MinIO)', () => {
   let module: TestingModule;
   let storage: StorageService;
 

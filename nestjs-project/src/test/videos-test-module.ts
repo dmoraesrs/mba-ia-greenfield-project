@@ -10,7 +10,7 @@ import { testQueueConfig, testStorageConfig } from './test-infra';
 import { VIDEO_TEST_ENTITIES } from './video-fixtures';
 
 /**
- * Módulo de teste com o `VideosModule` real sobre Postgres, RustFS (bucket de
+ * Módulo de teste com o `VideosModule` real sobre Postgres, MinIO (bucket de
  * teste) e Valkey (prefixo de teste).
  */
 export function createVideosTestingModule(

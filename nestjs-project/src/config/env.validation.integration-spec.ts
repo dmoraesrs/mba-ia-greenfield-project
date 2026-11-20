@@ -7,7 +7,7 @@ const requiredEnv = {
   DB_NAME: 'db',
   JWT_SECRET: 'secret',
   JWT_REFRESH_SECRET: 'refresh-secret',
-  STORAGE_ENDPOINT: 'http://rustfs:9000',
+  STORAGE_ENDPOINT: 'http://minio:9000',
   STORAGE_PUBLIC_ENDPOINT: 'http://localhost:9000',
   STORAGE_BUCKET: 'streamtube-test',
   STORAGE_ACCESS_KEY: 'access-key',

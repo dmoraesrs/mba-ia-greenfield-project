@@ -5,7 +5,7 @@ import { WorkerModule } from '../worker.module';
 import { testQueueConfig, testStorageConfig } from './test-infra';
 
 /**
- * `WorkerModule` real (Postgres, RustFS, Valkey e FFmpeg) com bucket e prefixo
+ * `WorkerModule` real (Postgres, MinIO, Valkey e FFmpeg) com bucket e prefixo
  * de fila de teste. Após `init()`, os consumidores rodam in-process.
  */
 export function createWorkerTestingModule(): TestingModuleBuilder {
